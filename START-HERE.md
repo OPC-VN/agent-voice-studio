@@ -10,9 +10,9 @@ Dán khối này vào Claude Code, Codex hoặc Antigravity (luật và từng b
 
 ```text
 Hãy cài Agent Voice Studio lên máy này (Windows hoặc macOS) cho chính ứng dụng AI bạn đang chạy.
-Nguồn duy nhất: https://github.com/ducnguyen221/agent-voice-studio
+Nguồn duy nhất: https://github.com/OPC-VN/agent-voice-studio
 Đọc trước rồi làm đúng từng bước trong hướng dẫn dành cho agent:
-https://raw.githubusercontent.com/ducnguyen221/agent-voice-studio/main/INSTALL.md
+https://raw.githubusercontent.com/OPC-VN/agent-voice-studio/main/INSTALL.md
 (không mở được link thì clone repo rồi đọc file INSTALL.md trong đó).
 Hỏi tôi trước khi cài phần mềm, cần quyền admin, tải engine nặng vài GB hoặc chọn chỗ đặt trạm giọng.
 Không đổi chính sách hệ thống, không tải script về rồi chạy, không đọc hay ghi mật khẩu, khóa, file .env.
@@ -26,7 +26,7 @@ Cần Git và Python 3.10–3.13 (khuyến nghị 3.12); ffmpeg nên có. Clone 
 để trong OneDrive/iCloud/Dropbox:
 
 ```bash
-git clone https://github.com/ducnguyen221/agent-voice-studio "$HOME/agent-voice-studio"
+git clone https://github.com/OPC-VN/agent-voice-studio "$HOME/agent-voice-studio"
 cd "$HOME/agent-voice-studio"
 ```
 

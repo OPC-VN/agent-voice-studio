@@ -46,9 +46,9 @@ chỗ đặt trạm giọng, và báo nguyên từng dòng `voice-studio doctor`
 
 ```text
 Hãy cài Agent Voice Studio lên máy này (Windows hoặc macOS) cho chính ứng dụng AI bạn đang chạy.
-Nguồn duy nhất: https://github.com/ducnguyen221/agent-voice-studio
+Nguồn duy nhất: https://github.com/OPC-VN/agent-voice-studio
 Đọc trước rồi làm đúng từng bước trong hướng dẫn dành cho agent:
-https://raw.githubusercontent.com/ducnguyen221/agent-voice-studio/main/INSTALL.md
+https://raw.githubusercontent.com/OPC-VN/agent-voice-studio/main/INSTALL.md
 (không mở được link thì clone repo rồi đọc file INSTALL.md trong đó).
 Hỏi tôi trước khi cài phần mềm, cần quyền admin, tải engine nặng vài GB hoặc chọn chỗ đặt trạm giọng.
 Không đổi chính sách hệ thống, không tải script về rồi chạy, không đọc hay ghi mật khẩu, khóa, file .env.
@@ -59,7 +59,7 @@ Kết thúc bằng tóm tắt: đường dẫn repo, chỗ đặt trạm, kết 
 Tự cài bằng tay (từng bước: [`START-HERE.md`](START-HERE.md)):
 
 ```bash
-git clone https://github.com/ducnguyen221/agent-voice-studio
+git clone https://github.com/OPC-VN/agent-voice-studio
 cd agent-voice-studio
 ```
 
@@ -98,7 +98,7 @@ Trạm giọng là nơi chứa venv, giọng, nhạc nền, output của anh —
 Cài như plugin cho agent:
 
 ```bash
-claude plugin marketplace add ducnguyen221/agent-voice-studio
+claude plugin marketplace add OPC-VN/agent-voice-studio
 claude plugin install agent-voice-studio@agent-voice-studio
 ```
 

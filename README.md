@@ -51,9 +51,9 @@ downloading the engine, lets *you* choose where the voice station lives, and rep
 
 ```text
 Install Agent Voice Studio on this machine (Windows or macOS) for the AI app you are running in.
-Single source: https://github.com/ducnguyen221/agent-voice-studio
+Single source: https://github.com/OPC-VN/agent-voice-studio
 First read, then follow every step of the agent guide at
-https://raw.githubusercontent.com/ducnguyen221/agent-voice-studio/main/INSTALL.md
+https://raw.githubusercontent.com/OPC-VN/agent-voice-studio/main/INSTALL.md
 (if the link cannot be opened, clone the repo and read its INSTALL.md).
 Ask me before installing software, anything needing admin rights, downloading the multi-GB engine,
 or choosing where the voice station lives. Do not change system policy, do not download-and-run
@@ -65,7 +65,7 @@ location, doctor result, software added, and what I need to do next.
 By hand (Vietnamese walkthrough: [`START-HERE.md`](START-HERE.md)):
 
 ```bash
-git clone https://github.com/ducnguyen221/agent-voice-studio
+git clone https://github.com/OPC-VN/agent-voice-studio
 cd agent-voice-studio
 ```
 
@@ -110,11 +110,11 @@ As an agent plugin:
 
 ```bash
 # Claude Code
-claude plugin marketplace add ducnguyen221/agent-voice-studio
+claude plugin marketplace add OPC-VN/agent-voice-studio
 claude plugin install agent-voice-studio@agent-voice-studio
 
 # Codex
-codex plugin marketplace add ducnguyen221/agent-voice-studio
+codex plugin marketplace add OPC-VN/agent-voice-studio
 codex plugin install agent-voice-studio@agent-voice-studio
 ```
 
