@@ -188,6 +188,64 @@ def test_single_delayed_chapter_is_exported(tmp_path):
     assert _read_m4b(out / "chapters.m4b", ffmpeg) == [(7, 9, "Một chương")]
 
 
+@pytest.mark.parametrize(("first", "second", "last_end", "fragments"), [
+    (0, 17250, 30000, ("chương 1", "START", "7.000", "0.000")),
+    (7000, 17251, 30000, ()),
+    (7000, 17252, 30000, ("chương 2", "START", "17.250", "17.252")),
+    (7000, 17250, 29999, ()),
+    (7000, 17250, 29998, ("chương 2", "END", "30.000", "29.998")),
+    (7000, None, 30000, ("2 chương", "1 chương")),
+])
+def test_m4b_readback_checks_timing_before_publish(tmp_path, capsys, monkeypatch,
+                                                    first, second, last_end, fragments):
+    from conftest import write_wav
+
+    ffmpeg = _ffmpeg_or_skip()
+    audio = tmp_path / "intro.wav"
+    write_wav(audio, seconds=35)
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({
+        "audio": audio.name,
+        "chapters": [
+            {"title": "Mở đầu", "start": 7, "dur": 10.25},
+            {"title": "Chương hai", "start": 17.25, "dur": 12.75},
+        ],
+    }), encoding="utf-8")
+    out = tmp_path / "out"
+    out.mkdir()
+    old = {f"chapters.{ext}": f"previous {ext}".encode() for ext in ("txt", "json", "m4b", "cue")}
+    for name, previous in old.items():
+        (out / name).write_bytes(previous)
+
+    metadata = f";FFMETADATA1\n[CHAPTER]\nTIMEBASE=1/1000\nSTART={first}\nEND=17250\n"
+    if second is not None:
+        metadata += f"[CHAPTER]\nTIMEBASE=1/1000\nSTART={second}\nEND={last_end}\n"
+    version = subprocess.check_output([ffmpeg, "-version"]).splitlines()[0].decode("utf-8")
+    real_run = subprocess.run
+    attempts = []
+
+    def override_readback(args, *extra, **kwargs):
+        if args[-3:] == ["-f", "ffmetadata", "-"]:
+            staged = Path(args[args.index("-i") + 1])
+            assert args[0] == ffmpeg and staged.parent.parent == out.resolve() and staged.is_file()
+            attempts.append(staged)
+            return subprocess.CompletedProcess(args, 0, stdout=metadata.encode("utf-8"), stderr=b"")
+        return real_run(args, *extra, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", override_readback)
+    code = cli.main(["chapters", "--manifest", str(manifest), "--out-dir", str(out), "--m4b", "--json"])
+    result = json.loads(capsys.readouterr().out)
+    assert code == (1 if fragments else 0)
+    assert len(attempts) == 1
+    if fragments:
+        assert not result["ok"] and result["code"] == 1
+        assert all(fragment in result["error"] for fragment in (*fragments, version))
+        assert {item.name: item.read_bytes() for item in out.iterdir()} == old
+    else:
+        assert result["ok"] and result["chapter_count"] == 2
+        assert (out / "chapters.m4b").read_bytes() != old["chapters.m4b"]
+
+
 def test_directory_chapters_use_decoded_sample_counts(tmp_path, capsys):
     import wave
 

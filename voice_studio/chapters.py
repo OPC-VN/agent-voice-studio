@@ -6,6 +6,7 @@ import re
 import subprocess
 import tempfile
 from dataclasses import asdict, dataclass
+from fractions import Fraction
 from pathlib import Path
 from typing import BinaryIO, Sequence
 
@@ -232,6 +233,57 @@ def _join_pcm(
     return chapters
 
 
+def _ffmpeg_version(ffmpeg: str) -> str:
+    try:
+        output = subprocess.check_output([ffmpeg, "-version"], stderr=subprocess.DEVNULL, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return "FFmpeg chưa đọc được phiên bản"
+    lines = output.decode("utf-8", errors="replace").splitlines()
+    return lines[0] if lines else "FFmpeg chưa đọc được phiên bản"
+
+
+def _verify_m4b_timing(ffmpeg: str, target: Path, chapters: Sequence[Chapter]) -> None:
+    try:
+        result = subprocess.run(
+            [ffmpeg, "-nostdin", "-v", "error", "-protocol_whitelist", "file", "-f", "mov",
+             "-i", str(target), "-map_metadata", "-1", "-map_metadata:c", "-1",
+             "-f", "ffmetadata", "-"],
+            capture_output=True, timeout=30,
+        )
+        if result.returncode:
+            detail = result.stderr.decode("utf-8", errors="replace").strip()[-500:]
+            raise ValueError(f"Đọc mốc chương thất bại (mã {result.returncode}): {detail}")
+        # Bỏ tag để tiêu đề có nhiều dòng không bị nhầm với khối [CHAPTER].
+        metadata = result.stdout.decode("utf-8").replace("\r\n", "\n")
+        header, *blocks = metadata.split("\n[CHAPTER]\n")
+        if not header.startswith(";FFMETADATA1"):
+            raise ValueError("Đầu ra đọc lại thiếu đầu mục FFMETADATA1.")
+        if len(blocks) != len(chapters):
+            raise ValueError(f"Mong đợi {len(chapters)} chương, đọc được {len(blocks)} chương.")
+
+        checks = []
+        for index, (chapter, block) in enumerate(zip(chapters, blocks, strict=True), 1):
+            match = re.fullmatch(
+                r"TIMEBASE=([1-9][0-9]*)/([1-9][0-9]*)\nSTART=(-?[0-9]+)\nEND=(-?[0-9]+)",
+                block.strip(),
+            )
+            if not match:
+                raise ValueError(f"Không đọc được TIMEBASE/START/END của chương {index}.")
+            num, den, start, end = map(int, match.groups())
+            unit = Fraction(num, den)
+            checks.append((index, "START", Fraction(str(chapter.start)), unit * start))
+        last = chapters[-1]
+        checks.append((len(chapters), "END", Fraction(str(last.start)) + Fraction(str(last.dur)), unit * end))
+        for index, field, expected, actual in checks:
+            if abs(expected - actual) > Fraction(1, 1000):
+                raise ValueError(
+                    f"Mốc {field} chương {index}: mong đợi {float(expected):.6f} s, "
+                    f"đọc được {float(actual):.6f} s."
+                )
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        raise EngineError(f"Tự kiểm mốc M4B thất bại ({_ffmpeg_version(ffmpeg)}): {exc}") from exc
+
+
 def _write_m4b(
     ffmpeg: str, input_args: list[str], chapters: Sequence[Chapter], target: Path,
 ) -> None:
@@ -255,6 +307,7 @@ def _write_m4b(
     ])
     if lead_in_ms:
         add_chapter_lead_in(target, lead_in_ms)
+        _verify_m4b_timing(ffmpeg, target, chapters)
 
 
 def _publish(stage: Path, paths: Sequence[Path]) -> None:
