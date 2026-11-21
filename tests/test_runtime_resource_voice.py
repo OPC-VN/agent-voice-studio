@@ -317,7 +317,9 @@ def test_venv_commands_without_cli(opcos, tmp_path):
     venv = str(opcos / "runtime" / "venvs" / REPO_KEY / "omnivoice")
     joined = "\n".join(cmds)
     assert cmds[0] == f"python -m venv \"{venv}\""
-    assert "pip install torch" in joined and "download.pytorch.org" in joined
+    assert "pip install torch" in joined
+    if sys.platform != "darwin":   # macOS dùng MPS: không có index CUDA
+        assert "download.pytorch.org" in joined
     repo = _env.repo_root()
     assert f"pip install \"{repo}[engine,mcp]\"" in joined          # cùng bộ gói với `ensure` (TK5.1/L6)
     assert not _is_editable(cmds) and "opcos-runtime" not in joined

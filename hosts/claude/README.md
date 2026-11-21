@@ -12,7 +12,7 @@ Code. Tự cài: làm theo [START-HERE.md](../../START-HERE.md) (clone, venv, `v
    người dùng của Claude Code, nên hỏi người dùng trước:
 
    ```bash
-   claude plugin marketplace add ducnguyen221/agent-voice-studio
+   claude plugin marketplace add OPC-VN/agent-voice-studio
    claude plugin install agent-voice-studio@agent-voice-studio
    ```
 

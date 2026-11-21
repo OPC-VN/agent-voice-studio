@@ -69,8 +69,8 @@ ALLOW = {
     ("docs/troubleshooting.md", "tien-to-pipeline"): 1,        # dạy đổi tên biến cũ sang VOICE_BGM*
     # Ghi công tác giả + địa chỉ repo công khai: đúng chỗ, là điều kiện của license.
     (".claude-plugin/marketplace.json", "tac-gia"): 4,
-    (".claude-plugin/plugin.json", "tac-gia"): 3,
-    (".codex-plugin/plugin.json", "tac-gia"): 3,
+    (".claude-plugin/plugin.json", "tac-gia"): 2,
+    (".codex-plugin/plugin.json", "tac-gia"): 2,
     # Tên đầy đủ, email, website tác giả: chủ dự án chủ động công khai (18/10) ở khối author/owner
     # của manifest, chủ bản quyền LICENSE/NOTICE và mục Author/Tác giả của README. Đếm chính xác
     # từng file: tên/email ở file khác, hay thêm một lần ở đây, vẫn đỏ.
@@ -82,22 +82,15 @@ ALLOW = {
     ("README.md", "ten-nguoi"): 1,
     ("README.vi.md", "ten-nguoi"): 1,
     ("NOTICE", "tac-gia"): 1,
-    ("README.md", "tac-gia"): 10,       # +2: URL repo trong prompt cài; +4: mục Author
-    ("README.vi.md", "tac-gia"): 9,     # +2: URL repo trong prompt cài; +4: mục Tác giả
-    ("docs/INSTALL.md", "tac-gia"): 1,
-    # INSTALL.md cho agent: địa chỉ repo công khai là NGUỒN DUY NHẤT mà prompt và luật an toàn trỏ tới.
-    ("INSTALL.md", "tac-gia"): 7,
-    # Test cài đặt: hằng URL repo chính thức mà prompt phải trỏ tới.
-    ("tests/test_install_docs.py", "tac-gia"): 2,
-    ("START-HERE.md", "tac-gia"): 3,                 # prompt cài (2 URL) + lệnh clone
-    ("docs/install/index.html", "tac-gia"): 6,       # 2 prompt x 2 URL + link INSTALL/START-HERE trên GitHub
-    # Trang host: lệnh `plugin marketplace add <chủ>/<repo>` mang địa chỉ repo công khai.
-    ("hosts/claude/README.md", "tac-gia"): 1,
-    ("hosts/codex/README.md", "tac-gia"): 1,
-    # Trang giới thiệu công khai (GitHub Pages): địa chỉ kho mã, tài liệu và các trang cùng họ
+    ("README.md", "tac-gia"): 5,       # +2: URL repo trong prompt cài; +4: mục Author
+    ("README.vi.md", "tac-gia"): 5,     # +2: URL repo trong prompt cài; +4: mục Tác giả
+        # INSTALL.md cho agent: địa chỉ repo công khai là NGUỒN DUY NHẤT mà prompt và luật an toàn trỏ tới.
+        # Test cài đặt: hằng URL repo chính thức mà prompt phải trỏ tới.
+                # Trang host: lệnh `plugin marketplace add <chủ>/<repo>` mang địa chỉ repo công khai.
+            # Trang giới thiệu công khai (GitHub Pages): địa chỉ kho mã, tài liệu và các trang cùng họ
     # là NỘI DUNG của trang, không phải rò rỉ. Vẫn khoá theo số đếm: thêm một liên kết là đỏ,
     # nên không ai nhét được đường dẫn máy hay tên profile thật vào đây mà không bị nhìn thấy.
-    ("docs/index.html", "tac-gia"): 22,
+    ("docs/index.html", "tac-gia"): 11,
 }
 
 # `.example` có trong danh sách vì `.env.example` là đúng loại file hay rò nhất: người ta

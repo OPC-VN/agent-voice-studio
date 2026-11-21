@@ -76,7 +76,7 @@ ngoài giờ lịch chạy, bằng `git fetch --tags` rồi `git checkout <tag>`
 ### Máy phát triển (`-e`)
 
 ```
-git clone https://github.com/ducnguyen221/agent-voice-studio
+git clone https://github.com/OPC-VN/agent-voice-studio
 cd agent-voice-studio
 pip install -e .          # trong venv engine — lệnh voice-studio
 voice-studio --version

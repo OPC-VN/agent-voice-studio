@@ -14,8 +14,8 @@ import pytest
 from voice_studio import cli
 
 ROOT = Path(__file__).resolve().parent.parent
-OFFICIAL_REPO = "https://github.com/ducnguyen221/agent-voice-studio"
-RAW_INSTALL_URL = "https://raw.githubusercontent.com/ducnguyen221/agent-voice-studio/main/INSTALL.md"
+OFFICIAL_REPO = "https://github.com/OPC-VN/agent-voice-studio"
+RAW_INSTALL_URL = "https://raw.githubusercontent.com/OPC-VN/agent-voice-studio/main/INSTALL.md"
 PROMPT_START = {
     "vi": "Hãy cài Agent Voice Studio lên máy này",
     "en": "Install Agent Voice Studio on this machine",

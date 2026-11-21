@@ -12,7 +12,7 @@ Windows và macOS.
    ghi vào cấu hình người dùng của Codex, nên hỏi người dùng trước:
 
    ```bash
-   codex plugin marketplace add ducnguyen221/agent-voice-studio
+   codex plugin marketplace add OPC-VN/agent-voice-studio
    codex plugin install agent-voice-studio@agent-voice-studio
    ```
 
