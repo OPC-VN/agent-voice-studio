@@ -181,6 +181,8 @@ use `--audio-dir tracks` in place of `--manifest`. Files are sorted by name and 
 with one `HH:MM:SS Title` line per file in `tracks/chapters.txt` (or `--chapters-file`).
 The command calculates actual boundaries from decoded samples. `--m4b` also writes
 `chapters.m4b` and `chapters.cue`. FFmpeg is required for directory input and M4B.
+M4B with an intro: chapter times were checked with FFmpeg only; playback in VLC,
+Apple Books, iOS and other players is **not yet tested**.
 
 `speak`/`narrate` are the **stable contract** for other pipelines: `--json` prints exactly one
 JSON line as the last line of stdout, logs go to stderr, exit codes `0` ok · `1` engine error ·

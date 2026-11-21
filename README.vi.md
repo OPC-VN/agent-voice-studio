@@ -164,6 +164,8 @@ thay cho `--manifest`. Lệnh sắp file theo tên, ghép với mỗi
 dòng `HH:MM:SS Tên chương` ở `tracks/chapters.txt` (hoặc `--chapters-file`) và tính lại mốc
 theo số mẫu đã giải mã. Thêm `--m4b` để xuất `chapters.m4b` và `chapters.cue`.
 Chế độ thư mục và M4B cần FFmpeg.
+M4B có lời dẫn: mốc chương mới kiểm bằng FFmpeg; phát trên VLC, Apple Books, iOS và
+trình phát khác **chưa kiểm**.
 
 `speak`/`narrate` là **hợp đồng ổn định** cho pipeline khác: `--json` in đúng một dòng JSON
 cuối stdout, log ra stderr, mã thoát `0` ok · `1` lỗi engine · `2` gọi/cấu hình sai (thiếu
