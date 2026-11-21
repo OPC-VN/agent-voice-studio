@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import BinaryIO, Sequence
 
 from . import _env, contract
+from ._m4b import add_chapter_lead_in
 from .contract import ContractError, EngineError
 
 _FFMETADATA_ESCAPES = str.maketrans({char: "\\" + char for char in "=;#\\\n"})
@@ -48,7 +49,7 @@ def _utf8_field(value: object, field: str) -> str:
 
 
 def parse_manifest(source: str) -> tuple[str, list[Chapter]]:
-    """Đọc JSON của pipeline truyện. Mốc tính bằng giây, bắt đầu từ 0."""
+    """Đọc JSON của pipeline truyện. Mốc tính bằng giây từ đầu audio."""
     try:
         data = json.loads(source)
     except (ValueError, RecursionError) as exc:
@@ -77,8 +78,6 @@ def parse_manifest(source: str) -> tuple[str, list[Chapter]]:
             # Chấp nhận sai số cộng số thực ở các mốc liền nhau, ví dụ 0.1 + 0.2.
             if start < previous_end and not math.isclose(start, previous_end, abs_tol=1e-9, rel_tol=0):
                 raise ContractError(f"Chương {i} chồng lấn với chương {i - 1}.")
-        elif start != 0:
-            raise ContractError("Mốc chương đầu tiên phải bắt đầu từ 0.")
         title = title.replace("\r\n", "\n").replace("\r", "\n")
         chapters.append(Chapter(title, start, dur))
     return audio, chapters
@@ -91,8 +90,9 @@ def _one_line(title: str) -> str:
 def render_text(chapters: Sequence[Chapter]) -> str:
     """Mốc HH:MM:SS cho mô tả YouTube."""
     lines = []
-    for chapter in chapters:
-        hours, rest = divmod(int(chapter.start), 3600)
+    for index, chapter in enumerate(chapters):
+        # YouTube cần mốc 0. Đoạn dẫn nhập thuộc mục đầu tiên trong bản text.
+        hours, rest = divmod(int(chapter.start) if index else 0, 3600)
         minutes, seconds = divmod(rest, 60)
         lines.append(f"{hours:02}:{minutes:02}:{seconds:02} {_one_line(chapter.title)}\n")
     return "".join(lines)
@@ -246,11 +246,15 @@ def _write_m4b(
         else:
             safe_chapters.append(chapter)
     metadata.write_text(render_ffmetadata(safe_chapters), encoding="utf-8", newline="\n")
+    lead_in_ms = round(chapters[0].start * 1000)
+    timing_options = ["-movie_timescale", "1000", "-use_editlist", "1"] if lead_in_ms else []
     _run_ffmpeg(ffmpeg, [
         *input_args, "-protocol_whitelist", "file", "-f", "ffmetadata", "-i", str(metadata),
         "-map", "0:a:0", "-map_metadata", "1", "-map_chapters", "1",
-        *overrides, "-c:a", "aac", str(target),
+        *overrides, *timing_options, "-c:a", "aac", str(target),
     ])
+    if lead_in_ms:
+        add_chapter_lead_in(target, lead_in_ms)
 
 
 def _publish(stage: Path, paths: Sequence[Path]) -> None:

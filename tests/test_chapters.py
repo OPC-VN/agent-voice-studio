@@ -59,7 +59,6 @@ def test_manifest_and_text_formats_preserve_vietnamese():
     {"audio": "a.wav", "chapters": [{"title": "\ud800", "start": 0, "dur": 1}]},
     {"audio": "a.wav", "chapters": [{"title": "A", "start": True, "dur": 1}]},
     {"audio": "a.wav", "chapters": [{"title": "A", "start": -1, "dur": 1}]},
-    {"audio": "a.wav", "chapters": [{"title": "A", "start": 1, "dur": 1}]},
     {"audio": "a.wav", "chapters": [{"title": "A", "start": 0, "dur": 0}]},
     {"audio": "a.wav", "chapters": [{"title": "A", "start": 0, "dur": float("inf")}]},
     {"audio": "a.wav", "chapters": [
@@ -95,7 +94,7 @@ def _read_m4b(path, ffmpeg):
         [ffmpeg, "-nostdin", "-v", "error", "-i", str(path), "-f", "ffmetadata", "-"],
         capture_output=True, check=True, encoding="utf-8", timeout=30,
     )
-    blocks = re.findall(r"\[CHAPTER\]\nTIMEBASE=(\d+)/(\d+)\nSTART=(\d+)\nEND=\d+\ntitle=([^\n]*)",
+    blocks = re.findall(r"\[CHAPTER\]\nTIMEBASE=(\d+)/(\d+)\nSTART=(\d+)\nEND=-?\d+\ntitle=([^\n]*)",
                         result.stdout)
     return [
         (int(start) * int(num) / int(den), re.sub(r"\\(.)", r"\1", title))
@@ -138,6 +137,51 @@ def test_command_exports_text_json_and_roundtrips_m4b(tmp_path, capsys):
     marks = _read_m4b(out / "chapters.m4b", ffmpeg)
     assert [title for _, title in marks] == [row["title"] for row in rows]
     assert [start for start, _ in marks] == pytest.approx([0, 1.25], abs=0.05)
+
+
+@pytest.mark.parametrize("third_start", [27.75, 34.5])
+def test_manifest_lead_in_roundtrips_m4b_but_youtube_starts_at_zero(tmp_path, third_start):
+    from conftest import write_wav
+
+    ffmpeg = _ffmpeg_or_skip()
+    audio = tmp_path / "Truyện.wav"
+    write_wav(audio, seconds=52)
+    rows = [
+        {"title": "Chương đầu", "start": 7, "dur": 10.25},
+        {"title": "Chương kế", "start": 17.25, "dur": third_start - 17.25},
+        {"title": "Chương cuối", "start": third_start, "dur": 52 - third_start},
+    ]
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({"audio": audio.name, "chapters": rows}), encoding="utf-8")
+    out = tmp_path / "out"
+
+    assert cli.main(["chapters", "--manifest", str(manifest), "--out-dir", str(out), "--m4b"]) == 0
+
+    assert _read_m4b(out / "chapters.m4b", ffmpeg) == [
+        (row["start"], row["title"]) for row in rows
+    ]
+    assert json.loads((out / "chapters.json").read_text(encoding="utf-8")) == rows
+    assert (out / "chapters.txt").read_text(encoding="utf-8").splitlines() == [
+        "00:00:00 Chương đầu", "00:00:17 Chương kế", f"00:00:{int(third_start)} Chương cuối",
+    ]
+    assert "INDEX 01 00:07:00" in (out / "chapters.cue").read_text(encoding="utf-8")
+
+
+def test_single_delayed_chapter_is_exported(tmp_path):
+    from conftest import write_wav
+
+    ffmpeg = _ffmpeg_or_skip()
+    audio = tmp_path / "intro.wav"
+    write_wav(audio, seconds=9)
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({
+        "audio": audio.name,
+        "chapters": [{"title": "Một chương", "start": 7, "dur": 2}],
+    }), encoding="utf-8")
+    out = tmp_path / "out"
+
+    assert cli.main(["chapters", "--manifest", str(manifest), "--out-dir", str(out), "--m4b"]) == 0
+    assert _read_m4b(out / "chapters.m4b", ffmpeg) == [(7, "Một chương")]
 
 
 def test_directory_chapters_use_decoded_sample_counts(tmp_path, capsys):

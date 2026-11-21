@@ -173,7 +173,10 @@ voice-studio export --personal --out voices.zip  # move machines: voices + music
 
 `chapters` writes `chapters.txt` for a YouTube description and UTF-8 `chapters.json`. Use
 a story manifest with `audio` (relative to the manifest or absolute) and
-`chapters[].title/start/dur` in seconds starting at zero. For a directory of tracks,
+`chapters[].title/start/dur` with times measured in seconds from the start of the audio.
+If the first chapter follows an intro, JSON, M4B, and CUE preserve its original time.
+The YouTube text starts that chapter at `00:00:00`, including the intro in the first section.
+For a directory of tracks,
 use `--audio-dir tracks` in place of `--manifest`. Files are sorted by name and paired
 with one `HH:MM:SS Title` line per file in `tracks/chapters.txt` (or `--chapters-file`).
 The command calculates actual boundaries from decoded samples. `--m4b` also writes

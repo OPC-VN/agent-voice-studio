@@ -157,8 +157,10 @@ voice-studio export --personal --out giong.zip   # chuyển máy: giọng + nh�
 
 `chapters` xuất `chapters.txt` để dán vào mô tả YouTube và `chapters.json` UTF-8.
 Manifest truyện có `audio` (đường tuyệt đối hoặc tương đối với manifest) và
-`chapters[].title/start/dur` tính bằng giây, bắt đầu từ 0. Nếu mỗi chương là một file
-riêng, dùng `--audio-dir tracks` thay cho `--manifest`. Lệnh sắp file theo tên, ghép với mỗi
+`chapters[].title/start/dur` với thời gian tính bằng giây từ đầu audio. Nếu có lời dẫn trước
+chương đầu, JSON, M4B và CUE giữ mốc gốc. Bản text cho YouTube đặt chương đầu ở `00:00:00`
+để đoạn dẫn thuộc phần đầu tiên. Nếu mỗi chương là một file riêng, dùng `--audio-dir tracks`
+thay cho `--manifest`. Lệnh sắp file theo tên, ghép với mỗi
 dòng `HH:MM:SS Tên chương` ở `tracks/chapters.txt` (hoặc `--chapters-file`) và tính lại mốc
 theo số mẫu đã giải mã. Thêm `--m4b` để xuất `chapters.m4b` và `chapters.cue`.
 Chế độ thư mục và M4B cần FFmpeg.
