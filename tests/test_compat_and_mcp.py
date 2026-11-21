@@ -150,6 +150,53 @@ def test_clone_voice_tool(station, fake_engine, tmp_path):
     assert mcp_server.clone_voice("x", "c.wav", str(tmp_path / "khong.wav")).startswith("ERROR")
 
 
+@pytest.mark.parametrize("generation_fails", [False, True])
+def test_clone_converts_mp3_reference_and_cleans_wav(
+    fake_engine, tmp_path, monkeypatch, generation_fails,
+):
+    import shutil
+    import subprocess
+    from pathlib import Path
+
+    from conftest import write_wav
+
+    source = write_wav(tmp_path / "ref.mp3")  # Nội dung WAV tổng hợp cho ffmpeg giả.
+    converted = []
+
+    def copy_ffmpeg(cmd, **kwargs):
+        assert cmd[cmd.index("-i") + 1] == source
+        assert cmd[cmd.index("-protocol_whitelist") + 1] == "file"
+        formats = cmd[cmd.index("-format_whitelist") + 1].split(",")
+        assert "mp3" in formats and "mov" in formats
+        assert "concat" not in formats and "hls" not in formats
+        converted.append(Path(cmd[-1]))
+        shutil.copyfile(source, converted[-1])
+        return subprocess.CompletedProcess(cmd, 0)
+
+    generate = fake_engine.generate
+
+    def model_generate(**kwargs):
+        ref = Path(kwargs["ref_audio"])
+        assert ref.suffix == ".wav" and ref.is_file()
+        assert converted == [ref]
+        return generate(**kwargs)
+
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+    monkeypatch.setenv("TEMP", str(tmp_path))
+    monkeypatch.setattr(engine, "ffmpeg", lambda: "ffmpeg")
+    monkeypatch.setattr(subprocess, "run", copy_ffmpeg)
+    monkeypatch.setattr(fake_engine, "generate", model_generate)
+    fake_engine.fail = generation_fails
+    output = str(tmp_path / "out.wav")
+
+    if generation_fails:
+        with pytest.raises(RuntimeError, match="CUDA out of memory"):
+            mcp_server.clone_voice("x", output, source)
+    else:
+        assert mcp_server.clone_voice("x", output, source).startswith("OK")
+    assert not converted[0].parent.exists()
+
+
 def test_profile_management_tools(station, fake_engine, tmp_path):
     from conftest import write_wav
     assert mcp_server.list_voice_profiles()["profiles"] == ["demo", "other"]

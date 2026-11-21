@@ -13,6 +13,7 @@ dùng `voice_studio.engine`, đừng dùng module này.
 import subprocess          # noqa: F401 — xem ghi chú dưới: là BỀ MẶT, không phải import thừa
 
 from . import av, engine, profiles
+from ._torchguard import no_grad_guard
 
 MODEL_ID = engine.MODEL_ID
 VOICE_OPTIONS = engine.VOICE_OPTIONS
@@ -47,10 +48,11 @@ def _synth(model, text, language, instruct, speed, voice_profile=None):
         prompt = profiles.get_clone_prompt(model, voice_profile)
     except Exception:
         prompt = None
-    if prompt is not None:
-        return model.generate(text=text, language=language, voice_clone_prompt=prompt,
-                              speed=speed)[0]
-    return model.generate(text=text, language=language, instruct=instruct, speed=speed)[0]
+    with no_grad_guard():
+        if prompt is not None:
+            return model.generate(text=text, language=language, voice_clone_prompt=prompt,
+                                  speed=speed)[0]
+        return model.generate(text=text, language=language, instruct=instruct, speed=speed)[0]
 
 
 def normalize_rms(a, target_db=None, peak_ceil=0.97):

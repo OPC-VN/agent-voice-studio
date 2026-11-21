@@ -30,6 +30,7 @@ import os
 import unicodedata
 
 from . import _env
+from ._torchguard import no_grad_guard
 
 FROZEN_SAMPLE_TEXT = (
     "Đây là giọng đọc mẫu, được dùng làm giọng mặc định nhất quán cho toàn bộ video thuyết minh.")
@@ -208,7 +209,8 @@ def save_profile_from_instruct(model, instruct, name, sample_text=None, set_as_d
     import soundfile as sf
     os.makedirs(voices_dir(), exist_ok=True)
     sample_text = (sample_text or FROZEN_SAMPLE_TEXT).strip()
-    audio = model.generate(text=sample_text, language=language, instruct=instruct)[0]
+    with no_grad_guard():
+        audio = model.generate(text=sample_text, language=language, instruct=instruct)[0]
     wav, txt = _paths(name)
     sf.write(wav, audio, model.sampling_rate)
     with open(txt, "w", encoding="utf-8") as f:
@@ -261,7 +263,8 @@ def get_clone_prompt(model, name=None):
         if os.path.isfile(txt):
             with open(txt, "r", encoding="utf-8") as f:
                 ref_text = f.read().strip() or None
-        prompt = model.create_voice_clone_prompt(ref_audio=wav, ref_text=ref_text)
+        with no_grad_guard():
+            prompt = model.create_voice_clone_prompt(ref_audio=wav, ref_text=ref_text)
         try:    # cố gắng hết sức: kho giọng chỉ-đọc không được làm hỏng việc tổng hợp
             prompt.save(_prompt_path(name))
         except Exception:

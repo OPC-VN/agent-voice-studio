@@ -41,6 +41,7 @@ import subprocess
 import sys
 
 from . import API_VERSION, _env, profiles
+from ._torchguard import no_grad_guard
 
 MODEL_ID = os.environ.get("OMNIVOICE_MODEL", "k2-fsa/OmniVoice")
 DEFAULT_LANGUAGE = "Vietnamese"
@@ -241,10 +242,11 @@ def synth(text, prompt=None, *, language=DEFAULT_LANGUAGE, speed=1.0, seed=None,
     extra = {"generation_config": gen_cfg} if gen_cfg is not None else {}
     if seed is not None:
         seed_all(seed)
-    if prompt is not None:
-        out = m.generate(text=text, language=language, voice_clone_prompt=prompt, speed=speed, **extra)
-    else:
-        out = m.generate(text=text, language=language, instruct=instruct, speed=speed, **extra)
+    with no_grad_guard():
+        if prompt is not None:
+            out = m.generate(text=text, language=language, voice_clone_prompt=prompt, speed=speed, **extra)
+        else:
+            out = m.generate(text=text, language=language, instruct=instruct, speed=speed, **extra)
     return out[0], m.sampling_rate
 
 

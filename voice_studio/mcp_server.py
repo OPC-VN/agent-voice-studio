@@ -18,8 +18,11 @@ Tool là hàm Python thường ở cấp module — test gọi thẳng, không c
 mới import FastMCP và đăng ký chúng. Model nạp một lần, lười, ở lần tổng hợp đầu tiên.
 """
 import os
+import tempfile
+from contextlib import ExitStack
 
 from . import API_VERSION, __version__, av, compat, engine, profiles
+from ._torchguard import no_grad_guard
 
 SERVER_NAME = "omnivoice-tts"      # giữ tên cũ: cấu hình MCP hiện có của người dùng trỏ tên này
 DEFAULT_INSTRUCT = "female, young adult, moderate pitch"
@@ -79,9 +82,17 @@ def clone_voice(text: str, output_path: str, ref_audio: str, ref_text: str = "",
     """
     if not os.path.isfile(ref_audio):
         return f"ERROR: ref_audio not found: {ref_audio}"
-    m = engine.load()
-    audio = m.generate(text=text, language=language, ref_audio=ref_audio,
-                       ref_text=(ref_text or None), speed=speed)[0]
+    with ExitStack() as stack:
+        wav = ref_audio
+        if os.path.splitext(ref_audio)[1].lower() != ".wav":
+            from .make_profile import extract
+
+            tmp_dir = stack.enter_context(tempfile.TemporaryDirectory(prefix="voice-ref-"))
+            wav = extract(ref_audio, os.path.join(tmp_dir, "ref.wav"), local_only=True)
+        m = engine.load()
+        with no_grad_guard():
+            audio = m.generate(text=text, language=language, ref_audio=wav,
+                               ref_text=(ref_text or None), speed=speed)[0]
     path = engine.save(audio, output_path, m.sampling_rate)
     dur = len(audio) / m.sampling_rate
     return (f"OK — cloned -> {path} ({dur:.1f}s @ {m.sampling_rate} Hz, "

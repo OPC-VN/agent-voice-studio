@@ -10,6 +10,7 @@ thay bằng module giả. Hai việc làm chung cho mọi test:
 """
 import os
 import sys
+from contextlib import contextmanager
 
 import pytest
 
@@ -87,11 +88,14 @@ class FakeModel:
 
     def __init__(self):
         self.calls = []
+        self.grad_calls = []
         self.fail = False
         self.asr_text = ""
 
     def generate(self, **kw):
         import numpy as np
+        import torch
+        self.grad_calls.append(("generate", torch.is_grad_enabled()))
         self.calls.append(kw)
         if self.fail:
             raise RuntimeError("CUDA out of memory (giả)")
@@ -100,6 +104,8 @@ class FakeModel:
         return [0.2 * np.sin(2 * np.pi * 220 * t).astype("float32")]
 
     def create_voice_clone_prompt(self, ref_audio=None, ref_text=None):
+        import torch
+        self.grad_calls.append(("create_voice_clone_prompt", torch.is_grad_enabled()))
         return FakePrompt(ref_audio, ref_text)
 
     def load_asr_model(self):
@@ -111,6 +117,20 @@ class FakeModel:
 
 def _fake_torch():
     t = types.ModuleType("torch")
+    grad_enabled = True
+
+    @contextmanager
+    def no_grad():
+        nonlocal grad_enabled
+        previous = grad_enabled
+        grad_enabled = False
+        try:
+            yield
+        finally:
+            grad_enabled = previous
+
+    t.no_grad = t.inference_mode = no_grad
+    t.is_grad_enabled = lambda: grad_enabled
     t.float16, t.float32 = "fp16", "fp32"
     t.manual_seed = lambda s: None
     t.cuda = types.SimpleNamespace(is_available=lambda: False, manual_seed_all=lambda s: None,

@@ -30,6 +30,7 @@ import subprocess
 import unicodedata
 
 from . import _env, contract, engine, profiles
+from ._torchguard import no_grad_guard
 from .contract import ContractError, log
 
 LEAD_IN = 0.15   # giây im lặng chừa trước câu đầu
@@ -40,12 +41,16 @@ PROBES = ["Xin chào, đây là bản kiểm tra giọng đọc.",
           "Hôm nay chúng ta bắt đầu với một con số đáng chú ý."]
 
 
-def extract(src, out_wav, start=0.0, dur=None, tail=TAIL):
+def extract(src, out_wav, start=0.0, dur=None, tail=TAIL, *, local_only=False):
     """Cắt clip mẫu: mono, 24 kHz. Có `start` > 0 thì lùi lead-in; có `dur` thì cộng đuôi im."""
     ss = max(0.0, float(start) - LEAD_IN) if start else 0.0
     cmd = [engine.ffmpeg(), "-y", "-v", "error", "-ss", f"{ss:.3f}"]
     if dur:
         cmd += ["-t", f"{float(dur) + (float(start) - ss) + tail:.3f}"]
+    if local_only:
+        # Đường MCP nhận một file tham chiếu, không mở playlist hoặc nguồn mạng từ nội dung file.
+        cmd += ["-protocol_whitelist", "file", "-format_whitelist",
+                "aac,aiff,flac,matroska,webm,mov,mp3,ogg,wav"]
     cmd += ["-i", src, "-vn", "-ac", "1", "-ar", str(SR), "-c:a", "pcm_s16le", out_wav]
     os.makedirs(os.path.dirname(os.path.abspath(out_wav)) or ".", exist_ok=True)
     subprocess.run(cmd, check=True, capture_output=True)
@@ -91,8 +96,9 @@ def check_stutter_leak(model, name, ref_text):
     for i, p in enumerate(PROBES):
         # Ghim seed: không có nó thì cùng một clip lúc báo đạt lúc báo rò.
         engine.seed_all(42 + i)
-        audio = model.generate(text=p, language="Vietnamese",
-                               voice_clone_prompt=prompt, normalize_text=False)[0]
+        with no_grad_guard():
+            audio = model.generate(text=p, language="Vietnamese",
+                                   voice_clone_prompt=prompt, normalize_text=False)[0]
         heard = transcribe_array(model, np.asarray(audio, dtype="float32"), model.sampling_rate)
         h = _syllables(heard)
         first = _fold(h[0]) if h else ""

@@ -17,6 +17,7 @@ import numpy as np
 import soundfile as sf
 
 from .. import engine
+from .._torchguard import no_grad_guard
 
 PEAK_MAX_DB = -0.5     # cao hơn -> nghi clipping
 RMS_MIN_DB = -34.0     # thấp hơn -> quá nhỏ
@@ -105,13 +106,15 @@ def check(model, wav, ref_text=None, f0_fail=None, verbose=False):
     if reasons:   # hỏng phần rẻ rồi thì khỏi tốn GPU chạy round-trip
         return False, ref_text, reasons
 
-    prompt = model.create_voice_clone_prompt(ref_audio=wav, ref_text=ref_text)
+    with no_grad_guard():
+        prompt = model.create_voice_clone_prompt(ref_audio=wav, ref_text=ref_text)
     tail = _fold(ref_text).split()
     tail = tail[-1] if tail else ""
     for i, p in enumerate(PROBES):
         engine.seed_all(42 + i)
-        out = model.generate(text=p, language="Vietnamese",
-                             voice_clone_prompt=prompt, normalize_text=False)[0]
+        with no_grad_guard():
+            out = model.generate(text=p, language="Vietnamese",
+                                 voice_clone_prompt=prompt, normalize_text=False)[0]
         heard = asr(model, out, model.sampling_rate)
         e = cer(p, heard)
         if e > CER_MAX:

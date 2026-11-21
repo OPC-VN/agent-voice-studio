@@ -14,6 +14,7 @@ import re
 import sys
 
 from .. import engine, profiles
+from .._torchguard import no_grad_guard
 
 
 def _voices():
@@ -143,7 +144,8 @@ def get_prompt(model, profile_name, profile, marker):
             except Exception:
                 prompt = None
         if prompt is None:
-            prompt = model.create_voice_clone_prompt(ref_audio=wav, ref_text=ref_text)
+            with no_grad_guard():
+                prompt = model.create_voice_clone_prompt(ref_audio=wav, ref_text=ref_text)
             try:
                 prompt.save(pt)
             except Exception:
@@ -233,8 +235,9 @@ def synth(model, text, profile_name, language="Vietnamese", speed=None, verbose=
                 # seed lệch theo thứ tự câu: tái lập được, nhưng các câu không dùng chung
                 # đúng một mẫu nhiễu.
                 engine.seed_all(seed + len(parts))
-            audio = model.generate(text=sent, language=language,
-                                   voice_clone_prompt=prompt, normalize_text=False, **kw)[0]
+            with no_grad_guard():
+                audio = model.generate(text=sent, language=language,
+                                       voice_clone_prompt=prompt, normalize_text=False, **kw)[0]
             audio = np.asarray(audio, dtype="float32")
 
             # Chuẩn hoá về mức của clip trung tính -> chống vênh âm lượng ở mối nối.
