@@ -1,8 +1,10 @@
 # Tầng 1 của `voice-studio clean` (venv `sep`): tách giọng khỏi nhạc. Nguồn: voice_studio/clean/README.md.
 # `opcos-runtime ensure --only venvs/sep` cài từ tệp này; khoá phiên bản Windows ở locks/sep-windows.txt.
 # onnxruntime-gpu trên Windows như venv cũ (CUDAExecutionProvider); nơi khác bản CPU để macOS vẫn cài được.
-audio-separator
+# 0.44.5 là bản đã chạy với lock Windows. macOS chưa kiểm. Upstream thiếu audioread (issue #310).
+audio-separator==0.44.5
 onnxruntime-gpu; sys_platform == "win32"
 onnxruntime; sys_platform != "win32"
 soundfile
 librosa==0.11.0
+audioread
