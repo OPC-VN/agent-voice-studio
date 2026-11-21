@@ -94,11 +94,12 @@ def _read_m4b(path, ffmpeg):
         [ffmpeg, "-nostdin", "-v", "error", "-i", str(path), "-f", "ffmetadata", "-"],
         capture_output=True, check=True, encoding="utf-8", timeout=30,
     )
-    blocks = re.findall(r"\[CHAPTER\]\nTIMEBASE=(\d+)/(\d+)\nSTART=(\d+)\nEND=-?\d+\ntitle=([^\n]*)",
+    blocks = re.findall(r"\[CHAPTER\]\nTIMEBASE=(\d+)/(\d+)\nSTART=(\d+)\nEND=(-?\d+)\ntitle=([^\n]*)",
                         result.stdout)
     return [
-        (int(start) * int(num) / int(den), re.sub(r"\\(.)", r"\1", title))
-        for num, den, start, title in blocks
+        (int(start) * int(num) / int(den), int(end) * int(num) / int(den),
+         re.sub(r"\\(.)", r"\1", title))
+        for num, den, start, end, title in blocks
     ]
 
 
@@ -135,8 +136,9 @@ def test_command_exports_text_json_and_roundtrips_m4b(tmp_path, capsys):
     assert [row["start"] for row in rows] == [0, 1.25]
     assert "INDEX 01 00:01:18" in (out / "chapters.cue").read_text(encoding="utf-8")
     marks = _read_m4b(out / "chapters.m4b", ffmpeg)
-    assert [title for _, title in marks] == [row["title"] for row in rows]
-    assert [start for start, _ in marks] == pytest.approx([0, 1.25], abs=0.05)
+    assert [title for _, _, title in marks] == [row["title"] for row in rows]
+    assert [start for start, _, _ in marks] == pytest.approx([0, 1.25], abs=0.05)
+    assert [end for _, end, _ in marks] == pytest.approx([1.25, 3], abs=0.05)
 
 
 @pytest.mark.parametrize("third_start", [27.75, 34.5])
@@ -145,11 +147,11 @@ def test_manifest_lead_in_roundtrips_m4b_but_youtube_starts_at_zero(tmp_path, th
 
     ffmpeg = _ffmpeg_or_skip()
     audio = tmp_path / "Truyện.wav"
-    write_wav(audio, seconds=52)
+    write_wav(audio, seconds=60)
     rows = [
         {"title": "Chương đầu", "start": 7, "dur": 10.25},
         {"title": "Chương kế", "start": 17.25, "dur": third_start - 17.25},
-        {"title": "Chương cuối", "start": third_start, "dur": 52 - third_start},
+        {"title": "Chương cuối", "start": third_start, "dur": 51.75 - third_start},
     ]
     manifest = tmp_path / "manifest.json"
     manifest.write_text(json.dumps({"audio": audio.name, "chapters": rows}), encoding="utf-8")
@@ -158,7 +160,9 @@ def test_manifest_lead_in_roundtrips_m4b_but_youtube_starts_at_zero(tmp_path, th
     assert cli.main(["chapters", "--manifest", str(manifest), "--out-dir", str(out), "--m4b"]) == 0
 
     assert _read_m4b(out / "chapters.m4b", ffmpeg) == [
-        (row["start"], row["title"]) for row in rows
+        (7, 17.25, "Chương đầu"),
+        (17.25, third_start, "Chương kế"),
+        (third_start, 51.75, "Chương cuối"),
     ]
     assert json.loads((out / "chapters.json").read_text(encoding="utf-8")) == rows
     assert (out / "chapters.txt").read_text(encoding="utf-8").splitlines() == [
@@ -172,7 +176,7 @@ def test_single_delayed_chapter_is_exported(tmp_path):
 
     ffmpeg = _ffmpeg_or_skip()
     audio = tmp_path / "intro.wav"
-    write_wav(audio, seconds=9)
+    write_wav(audio, seconds=12)
     manifest = tmp_path / "manifest.json"
     manifest.write_text(json.dumps({
         "audio": audio.name,
@@ -181,7 +185,7 @@ def test_single_delayed_chapter_is_exported(tmp_path):
     out = tmp_path / "out"
 
     assert cli.main(["chapters", "--manifest", str(manifest), "--out-dir", str(out), "--m4b"]) == 0
-    assert _read_m4b(out / "chapters.m4b", ffmpeg) == [(7, "Một chương")]
+    assert _read_m4b(out / "chapters.m4b", ffmpeg) == [(7, 9, "Một chương")]
 
 
 def test_directory_chapters_use_decoded_sample_counts(tmp_path, capsys):
@@ -207,8 +211,8 @@ def test_directory_chapters_use_decoded_sample_counts(tmp_path, capsys):
     assert rows[1]["start"] == rows[0]["dur"]
     assert rows[1]["dur"] == pytest.approx(1.0, abs=1 / 48000)
     marks = _read_m4b(out / "chapters.m4b", ffmpeg)
-    assert [title for _, title in marks] == ["Một", "Hai"]
-    assert [start for start, _ in marks] == pytest.approx([0, 1.1375], abs=0.05)
+    assert [title for _, _, title in marks] == ["Một", "Hai"]
+    assert [start for start, _, _ in marks] == pytest.approx([0, 1.1375], abs=0.05)
 
 
 def test_command_exports_text_without_loading_audio(tmp_path, capsys):

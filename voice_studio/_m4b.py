@@ -79,10 +79,12 @@ def _apply_lead_in(data: bytearray, lead_ms: int) -> None:
     media_info = _child(stream, media, b"minf")
     sample_table = _child(stream, media_info, b"stbl")
     sample_times = _child(stream, sample_table, b"stts")
-    entry_offset = sample_times.payload + 4
-    run_count, first_count, first_delta = struct.unpack_from(">III", data, entry_offset)
-    if not run_count or not first_count:
+    timing_start = sample_times.payload + 4
+    run_count, = struct.unpack_from(">I", data, timing_start)
+    runs = list(struct.iter_unpack(">II", data[timing_start + 4:sample_times.end]))
+    if not runs or run_count != len(runs):
         raise ValueError("Bảng thời gian mẫu chương không hợp lệ.")
+    first_count, first_delta = runs[0]
 
     # Thang thời gian ở cả movie và track chương là 1000 đơn vị/giây.
     edit_version, = struct.unpack_from(">B", data, edit_list.payload)
@@ -92,23 +94,33 @@ def _apply_lead_in(data: bytearray, lead_ms: int) -> None:
     edit_count, = struct.unpack_from(">I", data, edit_list.payload + 4)
     edit_start = edit_list.payload + 8
     duration, media_start, rate = struct.unpack_from(edit_format, data, edit_start)
-    if edit_count == 2 and duration == lead_ms and media_start == -1:
-        return  # Phiên bản FFmpeg đã ghi edit dẫn nhập đúng.
-    if edit_count != 1 or media_start != 0 or rate != 0x10000:
+    lead_is_separate = edit_count == 2 and duration == lead_ms and media_start == -1
+    if lead_is_separate:
+        duration, media_start, rate = struct.unpack_from(
+            edit_format, data, edit_start + struct.calcsize(edit_format),
+        )
+    if (edit_count != 1 and not lead_is_separate) or media_start != 0 or rate != 0x10000:
         raise ValueError("Edit list của track chương không đúng cấu trúc dự kiến.")
 
     # Với một chương, FFmpeg dùng thời lượng mẫu trực tiếp. Với nhiều chương,
     # FFmpeg gộp đoạn dẫn vào mẫu đầu khi tính chênh lệch đến mốc kế tiếp.
     single_chapter = run_count == first_count == 1
-    merged_lead = 0 if single_chapter else lead_ms
+    merged_lead = 0 if lead_is_separate or single_chapter else lead_ms
     if duration <= merged_lead or first_delta <= merged_lead:
         raise ValueError("Độ dài mẫu đầu không khớp với đoạn dẫn.")
-    empty_edit = struct.pack(edit_format, lead_ms, -1, rate)
-    struct.pack_into(">I", data, edit_list.payload + 4, 2)
-    struct.pack_into(edit_format, data, edit_start, duration - merged_lead, 0, rate)
-    if single_chapter:
-        _extend_duration(data, _child(stream, track, b"tkhd"), duration + lead_ms)
-        _extend_duration(data, _child(stream, movie, b"mvhd"), duration + lead_ms)
+    content_duration = duration - merged_lead
+    presentation_end = lead_ms + content_duration
+    replacements: list[tuple[int, int, bytes]] = []
+    growth: dict[_Box, int] = {}
+    if not lead_is_separate:
+        empty_edit = struct.pack(edit_format, lead_ms, -1, rate)
+        struct.pack_into(">I", data, edit_list.payload + 4, 2)
+        struct.pack_into(edit_format, data, edit_start, content_duration, 0, rate)
+        replacements.append((edit_start, edit_start, empty_edit))
+        growth.update({box: len(empty_edit) for box in (movie, track, edits, edit_list)})
+        if single_chapter:
+            _extend_duration(data, _child(stream, track, b"tkhd"), presentation_end)
+            _extend_duration(data, _child(stream, movie, b"mvhd"), presentation_end)
 
     media_version, = struct.unpack_from(">B", data, header.payload)
     media_timing = {0: (12, ">II"), 1: (20, ">IQ")}.get(media_version)
@@ -118,23 +130,32 @@ def _apply_lead_in(data: bytearray, lead_ms: int) -> None:
     time_scale, media_duration = struct.unpack_from(media_format, data, header.payload + offset)
     if time_scale != 1000 or media_duration <= merged_lead:
         raise ValueError("Thang hoặc độ dài track chương không hợp lệ.")
-    struct.pack_into(
-        media_format, data, header.payload + offset, time_scale, media_duration - merged_lead,
-    )
+    media_duration -= merged_lead
 
-    struct.pack_into(">II", data, entry_offset + 4, 1, first_delta - merged_lead)
-    insertions = [(edit_start, empty_edit)]
-    growth = {box: len(empty_edit) for box in (movie, track, edits, edit_list)}
-    if first_count > 1:
-        remainder = struct.pack(">II", first_count - 1, first_delta)
-        struct.pack_into(">I", data, entry_offset, run_count + 1)
-        insertions.append((entry_offset + 12, remainder))
-        for box in (movie, track, media, media_info, sample_table, sample_times):
-            growth[box] = growth.get(box, 0) + len(remainder)
+    # FFmpeg lấy độ dài media làm mốc kết trên timeline phim. Kéo dài mẫu cuối
+    # để hai giá trị bằng nhau. Edit list vẫn cắt phần dư ở đúng mốc kết gốc.
+    tail_padding = max(0, presentation_end - media_duration)
+    struct.pack_into(
+        media_format, data, header.payload + offset, time_scale, media_duration + tail_padding,
+    )
+    if merged_lead:
+        runs[:1] = [(1, first_delta - merged_lead)]
+        if first_count > 1:
+            runs.insert(1, (first_count - 1, first_delta))
+    if tail_padding:
+        last_count, last_delta = runs[-1]
+        runs[-1] = (1, last_delta + tail_padding)
+        if last_count > 1:
+            runs.insert(len(runs) - 1, (last_count - 1, last_delta))
+    timing = struct.pack(">I", len(runs)) + b"".join(struct.pack(">II", *run) for run in runs)
+    replacements.append((timing_start, sample_times.end, timing))
+    added = len(timing) - (sample_times.end - timing_start)
+    for box in (movie, track, media, media_info, sample_table, sample_times):
+        growth[box] = growth.get(box, 0) + added
     for box, extra in growth.items():
         if box.payload - box.start == 16:
             struct.pack_into(">Q", data, box.start + 8, box.end - box.start + extra)
         else:
             struct.pack_into(">I", data, box.start, box.end - box.start + extra)
-    for offset, entry in sorted(insertions, reverse=True):
-        data[offset:offset] = entry
+    for start, end, replacement in sorted(replacements, reverse=True):
+        data[start:end] = replacement
