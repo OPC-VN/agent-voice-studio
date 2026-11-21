@@ -18,6 +18,7 @@ Tool là hàm Python thường ở cấp module — test gọi thẳng, không c
 mới import FastMCP và đăng ký chúng. Model nạp một lần, lười, ở lần tổng hợp đầu tiên.
 """
 import os
+import subprocess
 import tempfile
 from contextlib import ExitStack
 
@@ -88,7 +89,17 @@ def clone_voice(text: str, output_path: str, ref_audio: str, ref_text: str = "",
             from .make_profile import extract
 
             tmp_dir = stack.enter_context(tempfile.TemporaryDirectory(prefix="voice-ref-"))
-            wav = extract(ref_audio, os.path.join(tmp_dir, "ref.wav"), local_only=True)
+            try:
+                wav = extract(ref_audio, os.path.join(tmp_dir, "ref.wav"), local_only=True)
+            except subprocess.CalledProcessError as exc:
+                detail = exc.stderr
+                if isinstance(detail, bytes):
+                    detail = detail.decode("utf-8", errors="replace")
+                detail = (detail or "").strip() or f"exit {exc.returncode}"
+                return f"ERROR: ffmpeg failed: {detail[-500:]}"
+            except (FileNotFoundError, RuntimeError) as exc:
+                # _env.ffmpeg_exe() báo RuntimeError khi không tìm thấy binary.
+                return f"ERROR: ffmpeg failed: {str(exc)[-500:]}"
         m = engine.load()
         with no_grad_guard():
             audio = m.generate(text=text, language=language, ref_audio=wav,

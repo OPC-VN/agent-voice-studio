@@ -197,6 +197,45 @@ def test_clone_converts_mp3_reference_and_cleans_wav(
     assert not converted[0].parent.exists()
 
 
+def test_clone_returns_ffmpeg_stderr_tail_and_cleans_temp(tmp_path, monkeypatch):
+    import subprocess
+    from pathlib import Path
+
+    source = tmp_path / "ref.mp3"
+    source.touch()
+    outputs = []
+    stderr = "phần đầu " + "x" * 600 + " đuôi lỗi giải mã"
+
+    def failed_decode(cmd, **kwargs):
+        outputs.append(Path(cmd[-1]))
+        raise subprocess.CalledProcessError(1, cmd, stderr=stderr.encode("utf-8"))
+
+    def load_never_called():
+        pytest.fail("Không nạp engine khi chuyển tham chiếu thất bại")
+
+    monkeypatch.setattr(engine, "ffmpeg", lambda: "ffmpeg")
+    monkeypatch.setattr(engine, "load", load_never_called)
+    monkeypatch.setattr(subprocess, "run", failed_decode)
+    result = mcp_server.clone_voice("x", str(tmp_path / "out.wav"), str(source))
+
+    assert result == f"ERROR: ffmpeg failed: {stderr[-500:]}"
+    assert len(outputs) == 1 and not outputs[0].parent.exists()
+
+
+@pytest.mark.parametrize("error", [FileNotFoundError, RuntimeError])
+def test_clone_returns_error_when_ffmpeg_is_unavailable(tmp_path, monkeypatch, error):
+    source = tmp_path / "ref.mp3"
+    source.touch()
+
+    def missing_ffmpeg():
+        raise error("không tìm thấy FFmpeg")
+
+    monkeypatch.setattr(engine, "ffmpeg", missing_ffmpeg)
+    assert mcp_server.clone_voice("x", str(tmp_path / "out.wav"), str(source)) == (
+        "ERROR: ffmpeg failed: không tìm thấy FFmpeg"
+    )
+
+
 def test_profile_management_tools(station, fake_engine, tmp_path):
     from conftest import write_wav
     assert mcp_server.list_voice_profiles()["profiles"] == ["demo", "other"]
