@@ -4,6 +4,8 @@
 `instruct` khi không có profile. MCP: tool gọi thẳng như hàm; `build_server()` đăng ký đủ 8 tool.
 """
 import os
+import shutil
+import subprocess
 import sys
 import types
 
@@ -154,8 +156,6 @@ def test_clone_voice_tool(station, fake_engine, tmp_path):
 def test_clone_converts_mp3_reference_and_cleans_wav(
     fake_engine, tmp_path, monkeypatch, generation_fails,
 ):
-    import shutil
-    import subprocess
     from pathlib import Path
 
     from conftest import write_wav
@@ -198,7 +198,6 @@ def test_clone_converts_mp3_reference_and_cleans_wav(
 
 
 def test_clone_returns_ffmpeg_stderr_tail_and_cleans_temp(tmp_path, monkeypatch):
-    import subprocess
     from pathlib import Path
 
     source = tmp_path / "ref.mp3"
@@ -234,6 +233,45 @@ def test_clone_returns_error_when_ffmpeg_is_unavailable(tmp_path, monkeypatch, e
     assert mcp_server.clone_voice("x", str(tmp_path / "out.wav"), str(source)) == (
         "ERROR: ffmpeg failed: không tìm thấy FFmpeg"
     )
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="cần FFmpeg thật trên PATH")
+@pytest.mark.parametrize(("suffix", "codec"), [("m4a", "aac"), ("ogg", "flac")])
+def test_extract_local_audio_with_real_ffmpeg(tmp_path, suffix, codec):
+    import soundfile as sf
+
+    from voice_studio import make_profile
+
+    source = tmp_path / f"ref.{suffix}"
+    target = tmp_path / "ref.wav"
+    subprocess.run(
+        ["ffmpeg", "-nostdin", "-v", "error", "-f", "lavfi", "-i",
+         "sine=frequency=440:duration=0.25", "-c:a", codec, str(source)],
+        check=True, capture_output=True, timeout=15,
+    )
+
+    assert make_profile.extract(str(source), str(target), local_only=True) == str(target)
+    info = sf.info(target)
+    assert (info.format, info.samplerate, info.channels) == ("WAV", 24000, 1)
+    assert info.duration == pytest.approx(0.25, abs=0.06)
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="cần FFmpeg thật trên PATH")
+def test_extract_local_rejects_http_playlist_with_real_ffmpeg(tmp_path):
+    from voice_studio import make_profile
+
+    playlist = tmp_path / "ref.m3u8"
+    playlist.write_text(
+        "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXTINF:1,\n"
+        "http://127.0.0.1:9/example.ts\n#EXT-X-ENDLIST\n",
+        encoding="utf-8",
+    )
+    target = tmp_path / "ref.wav"
+    with pytest.raises(subprocess.CalledProcessError) as exc_info:
+        make_profile.extract(str(playlist), str(target), local_only=True)
+
+    assert b"not on whitelist" in exc_info.value.stderr.lower()
+    assert not target.exists()
 
 
 def test_profile_management_tools(station, fake_engine, tmp_path):
