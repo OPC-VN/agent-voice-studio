@@ -1,9 +1,13 @@
 """Mốc chương thuần, không cần FFmpeg hay engine giọng."""
 import importlib.util
 import json
+import re
+import subprocess
+from pathlib import Path
 
 import pytest
 
+from voice_studio import _env, cli
 from voice_studio.contract import ContractError
 
 
@@ -51,6 +55,8 @@ def test_manifest_and_text_formats_preserve_vietnamese():
     {"audio": " ", "chapters": [{"title": "A", "start": 0, "dur": 1}]},
     {"audio": "a.wav", "chapters": [None]},
     {"audio": "a.wav", "chapters": [{"title": " ", "start": 0, "dur": 1}]},
+    {"audio": "\ud800.wav", "chapters": [{"title": "A", "start": 0, "dur": 1}]},
+    {"audio": "a.wav", "chapters": [{"title": "\ud800", "start": 0, "dur": 1}]},
     {"audio": "a.wav", "chapters": [{"title": "A", "start": True, "dur": 1}]},
     {"audio": "a.wav", "chapters": [{"title": "A", "start": -1, "dur": 1}]},
     {"audio": "a.wav", "chapters": [{"title": "A", "start": 1, "dur": 1}]},
@@ -69,3 +75,160 @@ def test_manifest_rejects_invalid_shape_or_timing(payload):
 def test_invalid_json_is_input_error():
     with pytest.raises(ContractError, match="JSON"):
         _chapters_module().parse_manifest("{")
+
+
+def test_cue_preserves_exact_frame_boundary_after_resampling():
+    chapters = _chapters_module()
+    marks = [chapters.Chapter("Một", 0, 1), chapters.Chapter("Hai", 35200 / 48000, 1)]
+    assert "INDEX 01 00:00:55" in chapters.render_cue("chapters.m4b", marks)
+
+
+def _ffmpeg_or_skip():
+    try:
+        return _env.ffmpeg_exe()
+    except RuntimeError:
+        pytest.skip("Cần FFmpeg để mã hóa và đọc lại M4B thực.")
+
+
+def _read_m4b(path, ffmpeg):
+    result = subprocess.run(
+        [ffmpeg, "-nostdin", "-v", "error", "-i", str(path), "-f", "ffmetadata", "-"],
+        capture_output=True, check=True, encoding="utf-8", timeout=30,
+    )
+    blocks = re.findall(r"\[CHAPTER\]\nTIMEBASE=(\d+)/(\d+)\nSTART=(\d+)\nEND=\d+\ntitle=([^\n]*)",
+                        result.stdout)
+    return [
+        (int(start) * int(num) / int(den), re.sub(r"\\(.)", r"\1", title))
+        for num, den, start, title in blocks
+    ]
+
+
+def _manifest(tmp_path, audio):
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({
+        "audio": audio,
+        "chapters": [
+            {"title": "Mở đầu = chuyện #1; tiếng \\ Việt\\", "start": 0, "dur": 1.25},
+            {"title": "Đoạn hai", "start": 1.25, "dur": 1.75},
+        ],
+    }, ensure_ascii=False), encoding="utf-8")
+    return manifest
+
+
+def test_command_exports_text_json_and_roundtrips_m4b(tmp_path, capsys):
+    from conftest import write_wav
+
+    ffmpeg = _ffmpeg_or_skip()
+    audio = tmp_path / "Tiếng Việt.wav"
+    write_wav(audio, seconds=3)
+    manifest = _manifest(tmp_path, audio.name)
+    out = tmp_path / "out"
+    assert cli.main(["chapters", "--manifest", str(manifest), "--out-dir", str(out),
+                     "--m4b", "--json"]) == 0
+    captured = capsys.readouterr()
+    assert len(captured.out.splitlines()) == 1
+    result = json.loads(captured.out)
+    assert result["ok"] and result["chapter_count"] == 2
+    assert (out / "chapters.txt").read_text(encoding="utf-8").splitlines() == [
+        "00:00:00 Mở đầu = chuyện #1; tiếng \\ Việt\\", "00:00:01 Đoạn hai",
+    ]
+    rows = json.loads((out / "chapters.json").read_text(encoding="utf-8"))
+    assert [row["start"] for row in rows] == [0, 1.25]
+    assert "INDEX 01 00:01:18" in (out / "chapters.cue").read_text(encoding="utf-8")
+    marks = _read_m4b(out / "chapters.m4b", ffmpeg)
+    assert [title for _, title in marks] == [row["title"] for row in rows]
+    assert [start for start, _ in marks] == pytest.approx([0, 1.25], abs=0.05)
+
+
+def test_directory_chapters_use_decoded_sample_counts(tmp_path, capsys):
+    import wave
+
+    ffmpeg = _ffmpeg_or_skip()
+    audio_dir = tmp_path / "audio"
+    audio_dir.mkdir()
+    # Tạo file theo thứ tự ngược, sample rate khác nhau và mốc nhãn cố ý khác số mẫu.
+    for name, rate, samples in [("02.wav", 24000, 24000), ("01.wav", 16000, 18200)]:
+        with wave.open(str(audio_dir / name), "wb") as target:
+            target.setparams((1, 2, rate, 0, "NONE", "not compressed"))
+            target.writeframes(b"\0\0" * samples)
+    (audio_dir / "chapters.txt").write_text(
+        "00:00:00 Một\n00:01:00 Hai\n", encoding="utf-8",
+    )
+    out = tmp_path / "out"
+    assert cli.main(["chapters", "--audio-dir", str(audio_dir), "--out-dir", str(out),
+                     "--m4b", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["chapter_count"] == 2
+    rows = json.loads((out / "chapters.json").read_text(encoding="utf-8"))
+    assert rows[0]["dur"] == pytest.approx(1.1375, abs=1 / 48000)
+    assert rows[1]["start"] == rows[0]["dur"]
+    assert rows[1]["dur"] == pytest.approx(1.0, abs=1 / 48000)
+    marks = _read_m4b(out / "chapters.m4b", ffmpeg)
+    assert [title for _, title in marks] == ["Một", "Hai"]
+    assert [start for start, _ in marks] == pytest.approx([0, 1.1375], abs=0.05)
+
+
+def test_command_exports_text_without_loading_audio(tmp_path, capsys):
+    manifest = _manifest(tmp_path, "archived.mp3")
+    out = tmp_path / "out"
+    assert cli.main(["chapters", "--manifest", str(manifest), "--out-dir", str(out),
+                     "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["chapter_count"] == 2
+    assert {file.name for file in out.iterdir()} == {"chapters.txt", "chapters.json"}
+
+
+def test_bad_manifest_returns_one_json_line_with_code_2(tmp_path, capsys):
+    manifest = tmp_path / "bad.json"
+    manifest.write_text("{", encoding="utf-8")
+    out = tmp_path / "out"
+    assert cli.main(["chapters", "--manifest", str(manifest), "--out-dir", str(out),
+                     "--json"]) == 2
+    stdout = capsys.readouterr().out
+    assert len(stdout.splitlines()) == 1
+    assert json.loads(stdout)["code"] == 2 and not out.exists()
+
+
+def test_encoder_failure_keeps_previous_export(tmp_path, capsys):
+    _ffmpeg_or_skip()
+    manifest = _manifest(tmp_path, "bad.wav")
+    (tmp_path / "bad.wav").write_bytes(b"invalid waveform")
+    out = tmp_path / "out"
+    out.mkdir()
+    old = out / "chapters.txt"
+    old.write_text("previous export", encoding="utf-8")
+    assert cli.main(["chapters", "--manifest", str(manifest), "--out-dir", str(out),
+                     "--m4b", "--json"]) == 1
+    assert json.loads(capsys.readouterr().out)["code"] == 1
+    assert set(out.iterdir()) == {old} and old.read_text(encoding="utf-8") == "previous export"
+
+
+def test_publish_failure_restores_previous_export(tmp_path, capsys, monkeypatch):
+    manifest = _manifest(tmp_path, "archived.mp3")
+    out = tmp_path / "out"
+    out.mkdir()
+    old = {out / "chapters.txt": "previous text", out / "chapters.json": "previous json"}
+    for path, content in old.items():
+        path.write_text(content, encoding="utf-8")
+    replace = Path.replace
+
+    def locked(path, target):
+        if Path(target) == out / "chapters.json" and path.parent.name != "previous":
+            raise PermissionError("destination open by another process")
+        return replace(path, target)
+
+    monkeypatch.setattr(Path, "replace", locked)
+    assert cli.main(["chapters", "--manifest", str(manifest), "--out-dir", str(out),
+                     "--json"]) == 1
+    assert json.loads(capsys.readouterr().out)["code"] == 1
+    assert {path: path.read_text(encoding="utf-8") for path in out.iterdir()} == old
+
+
+def test_ctrl_c_returns_code_2(monkeypatch, tmp_path, capsys):
+    chapters = _chapters_module()
+
+    def interrupted(_args):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(chapters, "export_chapters", interrupted, raising=False)
+    assert cli.main(["chapters", "--manifest", str(tmp_path / "any.json"),
+                     "--out-dir", str(tmp_path / "out"), "--json"]) == 2
+    assert json.loads(capsys.readouterr().out)["code"] == 2

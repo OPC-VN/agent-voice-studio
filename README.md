@@ -140,6 +140,7 @@ from drifting apart:
 |---|---|
 | `speak` | text → audio file (the stable contract, `--json`, exit codes 0/1/2/3) |
 | `listen` | audio → transcript + voice critique + spoken reply (`--json`) |
+| `chapters` | export chapter timestamps, with optional AAC audiobook (`--m4b`) |
 | `narrate` | silent video + narration → MP4 with voice (+ background music) |
 | `make-profile` | build a voice profile from a recording / video / instruction |
 | `clone` | build a profile from long media or a URL — **requires `--consent`** |
@@ -163,11 +164,20 @@ from drifting apart:
 ```bash
 voice-studio speak --text "Xin chào" --profile narrator --out a.wav --json   # for other pipelines
 voice-studio narrate --video silent.mp4 --file script.txt --out final.mp4 --json
+voice-studio chapters --manifest episode.json --out-dir out/episode --m4b --json
 voice-studio make-profile --audio rec.wav --start 120 --dur 18 --name narrator
 voice-studio clone --file talk.m4a --name narrator --consent
 voice-studio lab mine|build|split|organize …     # the multi-style builder above
 voice-studio export --personal --out voices.zip  # move machines: voices + music + station.json
 ```
+
+`chapters` writes `chapters.txt` for a YouTube description and UTF-8 `chapters.json`. Use
+a story manifest with `audio` (relative to the manifest or absolute) and
+`chapters[].title/start/dur` in seconds starting at zero. For a directory of tracks,
+use `--audio-dir tracks` in place of `--manifest`. Files are sorted by name and paired
+with one `HH:MM:SS Title` line per file in `tracks/chapters.txt` (or `--chapters-file`).
+The command calculates actual boundaries from decoded samples. `--m4b` also writes
+`chapters.m4b` and `chapters.cue`. FFmpeg is required for directory input and M4B.
 
 `speak`/`narrate` are the **stable contract** for other pipelines: `--json` prints exactly one
 JSON line as the last line of stdout, logs go to stderr, exit codes `0` ok · `1` engine error ·

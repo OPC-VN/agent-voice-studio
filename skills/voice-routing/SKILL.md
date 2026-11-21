@@ -63,6 +63,7 @@ nằm cạnh nó.
 voice-studio lab mine     --dir <bản ghi> --name <profile>     # đào các sắc thái đọc
 voice-studio lab build    --name <profile> --mode new          # chấm clip qua cổng, dựng profile
 voice-studio speak        --file script.txt --profile <profile> --out out.mp3 --json
+voice-studio chapters     --manifest tap-truyen.json --out-dir out/tap-truyen --json
 voice-studio make-profile --audio rec.wav --start 120 --dur 18 --name <profile>
 voice-studio verify       --wav clip.wav                       # soi một clip
 voice-studio lab split    --from <profile> --prefix <p>        # biến thể → profile độc lập

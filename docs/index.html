@@ -715,6 +715,7 @@
         <tbody>
           <tr><td class="lbl">speak</td><td>text → file audio (hợp đồng ổn định, <code>--json</code>, mã 0/1/2/3)</td></tr>
           <tr><td class="lbl">listen</td><td>audio → transcript + phản biện + giọng trả lời (<code>--json</code>)</td></tr>
+          <tr><td class="lbl">chapters</td><td>manifest truyện → mốc chương cho mô tả YouTube, tuỳ chọn sách nói M4B</td></tr>
           <tr><td class="lbl">narrate</td><td>video câm + lời dẫn → MP4 có giọng (+ nhạc nền)</td></tr>
           <tr><td class="lbl">make-profile</td><td>tạo profile giọng từ bản ghi / video / instruct</td></tr>
           <tr><td class="lbl m">clone</td><td>dựng profile từ media dài hoặc URL — <b>cần <code>--consent</code></b></td></tr>
@@ -738,6 +739,8 @@
       </table>
     </div>
     <div class="note reveal">
+      <p><code class="inline">voice-studio chapters --manifest tap-truyen.json --out-dir out/tap-truyen --m4b --json</code>
+        xuất <code>chapters.txt</code>, <code>chapters.json</code>, cùng M4B và CUE khi có <code>--m4b</code>.</p>
       <p><strong>Hợp đồng cho pipeline khác.</strong> <code class="inline">speak</code> và
         <code class="inline">narrate</code> là hợp đồng ổn định: có <code>--json</code> thì dòng cuối
         stdout là <b>đúng một</b> object JSON, log người đọc đi stderr. Mã thoát:

@@ -124,6 +124,7 @@ hai bên không trôi khỏi nhau:
 |---|---|
 | `speak` | text → file audio (hợp đồng ổn định, `--json`, mã 0/1/2/3) |
 | `listen` | audio → transcript + phản biện + giọng trả lời (`--json`) |
+| `chapters` | xuất mốc chương, tuỳ chọn sách nói AAC (`--m4b`) |
 | `narrate` | video câm + lời dẫn → MP4 có giọng (+ nhạc nền) |
 | `make-profile` | tạo profile giọng từ bản ghi / video / instruct |
 | `clone` | dựng profile từ media dài hoặc URL — **cần `--consent`** |
@@ -147,11 +148,20 @@ hai bên không trôi khỏi nhau:
 ```bash
 voice-studio speak --text "Xin chào" --profile narrator --out a.wav --json   # pipeline khác gọi
 voice-studio narrate --video cam.mp4 --file script.txt --out final.mp4 --json
+voice-studio chapters --manifest tap-truyen.json --out-dir out/tap-truyen --m4b --json
 voice-studio make-profile --audio rec.wav --start 120 --dur 18 --name narrator
 voice-studio clone --file talk.m4a --name narrator --consent
 voice-studio lab mine|build|split|organize …     # bộ dựng đa sắc thái ở trên
 voice-studio export --personal --out giong.zip   # chuyển máy: giọng + nhạc nền + station.json
 ```
+
+`chapters` xuất `chapters.txt` để dán vào mô tả YouTube và `chapters.json` UTF-8.
+Manifest truyện có `audio` (đường tuyệt đối hoặc tương đối với manifest) và
+`chapters[].title/start/dur` tính bằng giây, bắt đầu từ 0. Nếu mỗi chương là một file
+riêng, dùng `--audio-dir tracks` thay cho `--manifest`. Lệnh sắp file theo tên, ghép với mỗi
+dòng `HH:MM:SS Tên chương` ở `tracks/chapters.txt` (hoặc `--chapters-file`) và tính lại mốc
+theo số mẫu đã giải mã. Thêm `--m4b` để xuất `chapters.m4b` và `chapters.cue`.
+Chế độ thư mục và M4B cần FFmpeg.
 
 `speak`/`narrate` là **hợp đồng ổn định** cho pipeline khác: `--json` in đúng một dòng JSON
 cuối stdout, log ra stderr, mã thoát `0` ok · `1` lỗi engine · `2` gọi/cấu hình sai (thiếu

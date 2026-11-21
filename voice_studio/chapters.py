@@ -1,12 +1,25 @@
 """Đọc manifest truyện và xuất mốc chương."""
+import argparse
 import json
+import math
+import re
+import subprocess
+import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import BinaryIO, Sequence
 
-from .contract import ContractError
+from . import _env, contract
+from .contract import ContractError, EngineError
 
 _FFMETADATA_ESCAPES = str.maketrans({char: "\\" + char for char in "=;#\\\n"})
+_AUDIO_FORMATS = {
+    ".aac": "aac", ".flac": "flac", ".m4a": "mov", ".m4b": "mov",
+    ".mp3": "mp3", ".ogg": "ogg", ".opus": "ogg", ".wav": "wav",
+}
+_PCM_RATE = 48000
+_PCM_CHANNELS = 2
+_PCM_FRAME_BYTES = _PCM_CHANNELS * 2  # Signed 16-bit PCM.
 
 
 @dataclass(frozen=True)
@@ -24,6 +37,16 @@ def _seconds(value: object, field: str) -> float:
     return float(value)
 
 
+def _utf8_field(value: object, field: str) -> str:
+    if not isinstance(value, str) or not value.strip() or "\0" in value:
+        raise ContractError(f"{field} phải là chuỗi không rỗng.")
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise ContractError(f"{field} không biểu diễn được bằng UTF-8.") from exc
+    return value
+
+
 def parse_manifest(source: str) -> tuple[str, list[Chapter]]:
     """Đọc JSON của pipeline truyện. Mốc tính bằng giây, bắt đầu từ 0."""
     try:
@@ -32,10 +55,8 @@ def parse_manifest(source: str) -> tuple[str, list[Chapter]]:
         raise ContractError(f"Manifest JSON không hợp lệ: {exc}") from exc
     if not isinstance(data, dict):
         raise ContractError("Manifest phải là một đối tượng JSON.")
-    audio = data.get("audio")
+    audio = _utf8_field(data.get("audio"), "Đường dẫn audio")
     rows = data.get("chapters")
-    if not isinstance(audio, str) or not audio.strip() or "\0" in audio:
-        raise ContractError("Manifest cần trường audio là đường dẫn.")
     if not isinstance(rows, list) or not rows:
         raise ContractError("Manifest cần danh sách chapters có ít nhất một chương.")
 
@@ -43,9 +64,7 @@ def parse_manifest(source: str) -> tuple[str, list[Chapter]]:
     for i, row in enumerate(rows, 1):
         if not isinstance(row, dict):
             raise ContractError(f"Chương {i} phải là một đối tượng JSON.")
-        title = row.get("title")
-        if not isinstance(title, str) or not title.strip() or "\0" in title:
-            raise ContractError(f"Chương {i} thiếu tiêu đề hợp lệ.")
+        title = _utf8_field(row.get("title"), f"Chương {i}: title")
         start = _seconds(row.get("start"), f"Chương {i}: start")
         dur = _seconds(row.get("dur"), f"Chương {i}: dur")
         if dur <= 0:
@@ -100,8 +119,192 @@ def render_cue(audio: str, chapters: Sequence[Chapter]) -> str:
     file_type = "MP3" if Path(audio).suffix.lower() == ".mp3" else "WAVE"
     lines = [f'FILE "{_cue_label(audio)}" {file_type}']
     for number, chapter in enumerate(chapters, 1):
-        seconds, frames = divmod(int(chapter.start * 75), 75)
+        # Khi chia số mẫu rồi nhân 75, một mốc đúng frame có thể thấp hơn một ULP.
+        seconds, frames = divmod(int(math.nextafter(chapter.start * 75, math.inf)), 75)
         minutes, seconds = divmod(seconds, 60)
         lines.extend((f"  TRACK {number:02} AUDIO", f'    TITLE "{_cue_label(chapter.title)}"',
                       f"    INDEX 01 {minutes:02}:{seconds:02}:{frames:02}"))
     return "\n".join(lines) + "\n"
+
+
+def _read_utf8(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeError) as exc:
+        raise ContractError(f"Không đọc được tệp UTF-8 {path}: {exc}") from exc
+
+
+def _audio_input(path: Path) -> list[str]:
+    audio_format = _AUDIO_FORMATS.get(path.suffix.lower())
+    if not audio_format or not path.is_file():
+        raise ContractError(f"Cần file audio cục bộ có định dạng hỗ trợ: {path}")
+    # Chỉ mở audio cục bộ. Không dò playlist hoặc định dạng tham chiếu nguồn khác.
+    return ["-protocol_whitelist", "file", "-f", audio_format, "-i", str(path)]
+
+
+def _directory_sources(audio_dir: Path, labels_file: Path) -> list[tuple[Path, str]]:
+    if not audio_dir.is_dir():
+        raise ContractError(f"Không có thư mục audio: {audio_dir}")
+    paths = sorted(
+        (path for path in audio_dir.iterdir()
+         if path.suffix.lower() in _AUDIO_FORMATS and path.is_file()),
+        key=lambda path: (path.name.casefold(), path.name),
+    )
+    labels = []
+    for line in _read_utf8(labels_file).splitlines():
+        if not line.strip():
+            continue
+        fields = line.strip().split(maxsplit=1)
+        if len(fields) != 2 or not re.fullmatch(r"[0-9]{2,}:[0-5][0-9]:[0-5][0-9]", fields[0]):
+            raise ContractError("Mỗi dòng trong chapters.txt cần có HH:MM:SS và tên chương.")
+        labels.append(fields[1])
+    if not paths or len(paths) != len(labels):
+        raise ContractError(
+            f"Cần một tên chương cho mỗi file audio, có {len(labels)} tên và {len(paths)} file."
+        )
+    return list(zip(paths, labels))
+
+
+def _run_ffmpeg(exe: str, args: list[str], *, stdout: BinaryIO | None = None) -> None:
+    result = subprocess.run(
+        [exe, "-nostdin", "-v", "error", "-xerror", *args],
+        stdout=subprocess.DEVNULL if stdout is None else stdout, stderr=subprocess.PIPE,
+    )
+    if result.returncode:
+        detail = result.stderr.decode("utf-8", errors="replace").strip()
+        raise EngineError(f"FFmpeg lỗi (mã {result.returncode}): {detail}")
+
+
+def _join_pcm(
+    ffmpeg: str, sources: Sequence[tuple[Path, str]], pcm_path: Path, *, keep_pcm: bool,
+) -> list[Chapter]:
+    """Chép từng stream PCM liền nhau và tính mốc từ số frame đã giải mã."""
+    chapters = []
+    total_frames = 0
+    with pcm_path.open("wb", buffering=0) as pcm:
+        for path, title in sources:
+            start_byte = pcm.tell()
+            _run_ffmpeg(ffmpeg, [
+                *_audio_input(path), "-map", "0:a:0", "-ac", str(_PCM_CHANNELS),
+                "-ar", str(_PCM_RATE), "-c:a", "pcm_s16le", "-f", "s16le", "pipe:1",
+            ], stdout=pcm)
+            frames, remainder = divmod(pcm.tell() - start_byte, _PCM_FRAME_BYTES)
+            if not frames or remainder:
+                raise EngineError(f"FFmpeg không trả về PCM đầy đủ cho {path}.")
+            chapters.append(Chapter(title, total_frames / _PCM_RATE, frames / _PCM_RATE))
+            total_frames += frames
+            if not keep_pcm:
+                pcm.seek(0)
+                pcm.truncate()
+    return chapters
+
+
+def _write_m4b(
+    ffmpeg: str, input_args: list[str], chapters: Sequence[Chapter], target: Path,
+) -> None:
+    metadata = target.with_suffix(".ffmetadata")
+    safe_chapters = []
+    overrides = []
+    for i, chapter in enumerate(chapters):
+        if chapter.title.endswith("\\"):
+            # FFmpeg có thể đọc tiếp sang khối sau dù backslash cuối dòng đã escape.
+            safe_chapters.append(Chapter(" ", chapter.start, chapter.dur))
+            overrides.extend((f"-metadata:c:{i}", f"title={chapter.title}"))
+        else:
+            safe_chapters.append(chapter)
+    metadata.write_text(render_ffmetadata(safe_chapters), encoding="utf-8", newline="\n")
+    _run_ffmpeg(ffmpeg, [
+        *input_args, "-protocol_whitelist", "file", "-f", "ffmetadata", "-i", str(metadata),
+        "-map", "0:a:0", "-map_metadata", "1", "-map_chapters", "1",
+        *overrides, "-c:a", "aac", str(target),
+    ])
+
+
+def _publish(stage: Path, paths: Sequence[Path]) -> None:
+    previous = stage / "previous"
+    previous.mkdir()
+    touched = []
+    try:
+        for path in paths:
+            touched.append(path)
+            if path.exists():
+                path.replace(previous / path.name)
+            (stage / path.name).replace(path)
+    except (OSError, KeyboardInterrupt):
+        for path in reversed(touched):
+            saved = previous / path.name
+            if saved.exists():
+                saved.replace(path)
+            elif not (stage / path.name).exists():
+                path.unlink(missing_ok=True)
+        raise
+
+
+def export_chapters(args: argparse.Namespace) -> dict[str, object]:
+    """Xuất sidecar và tuỳ chọn bọc AAC có chương."""
+    out_dir = args.out_dir.resolve()
+    audio = None
+    sources: list[tuple[Path, str]] = []
+    if args.manifest is not None:
+        if args.chapters_file is not None:
+            raise ContractError("--chapters-file chỉ dùng với --audio-dir.")
+        source = args.manifest.resolve()
+        audio_ref, chapters = parse_manifest(_read_utf8(source))
+        audio = (source.parent / audio_ref).resolve()
+        input_args = _audio_input(audio) if args.m4b else []
+        protected = {source, audio}
+    else:
+        audio_dir = args.audio_dir.resolve()
+        if out_dir == audio_dir:
+            raise ContractError("--out-dir phải khác --audio-dir.")
+        labels_file = (args.chapters_file or audio_dir / "chapters.txt").resolve()
+        sources = _directory_sources(audio_dir, labels_file)
+        protected = {labels_file, *(path.resolve() for path, _ in sources)}
+
+    names = {"text": "chapters.txt", "json": "chapters.json"}
+    if args.m4b:
+        names.update(m4b="chapters.m4b", cue="chapters.cue")
+    outputs = {key: out_dir / name for key, name in names.items()}
+    if any(path.resolve() in protected for path in outputs.values()):
+        raise ContractError("Đầu ra trùng với tệp đầu vào. Hãy chọn --out-dir khác.")
+    if any(path.is_symlink() or (path.exists() and not path.is_file())
+           for path in outputs.values()):
+        raise ContractError("Đường dẫn đầu ra đã bị chiếm bởi thư mục hoặc liên kết.")
+
+    ffmpeg = _env.ffmpeg_exe() if sources or args.m4b else ""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".chapters-", dir=out_dir) as scratch:
+        stage = Path(scratch)
+        if sources:
+            pcm = stage / "chapters.pcm"
+            chapters = _join_pcm(ffmpeg, sources, pcm, keep_pcm=args.m4b)
+            input_args = ["-protocol_whitelist", "file", "-f", "s16le",
+                          "-ar", str(_PCM_RATE), "-ac", str(_PCM_CHANNELS), "-i", str(pcm)]
+        (stage / names["text"]).write_text(render_text(chapters), encoding="utf-8", newline="\n")
+        (stage / names["json"]).write_text(render_json(chapters), encoding="utf-8", newline="\n")
+        if args.m4b:
+            _write_m4b(ffmpeg, input_args, chapters, stage / names["m4b"])
+            (stage / names["cue"]).write_text(
+                render_cue(names["m4b"], chapters), encoding="utf-8", newline="\n",
+            )
+        _publish(stage, list(outputs.values()))
+    contract.log(f"[chapters] {len(chapters)} chương → {out_dir}")
+    return {"chapter_count": len(chapters),
+            "outputs": {key: str(path) for key, path in outputs.items()}}
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="voice-studio chapters", description="Xuất mốc truyện, tuỳ chọn thêm sách nói AAC.",
+    )
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--manifest", type=Path, help="JSON của pipeline truyện.")
+    source.add_argument("--audio-dir", type=Path, help="Thư mục có một file audio cho mỗi chương.")
+    parser.add_argument("--chapters-file", type=Path, help="Mặc định: <audio-dir>/chapters.txt.")
+    parser.add_argument("--out-dir", type=Path, required=True, help="Thư mục ghi kết quả.")
+    parser.add_argument("--m4b", action="store_true", help="Thêm chapters.m4b (AAC) và chapters.cue.")
+    parser.add_argument("--json", action="store_true", help="In một dòng JSON kết quả.")
+    args, code = contract.parse(parser, argv)
+    if code is not None:
+        return code
+    return contract.run(export_chapters, args, args.json)

@@ -22,7 +22,7 @@ def _lines():
 
 # Xoá BẤT KỲ dòng nào dưới đây là test đỏ — kể cả khi một mẫu rộng hơn tình cờ vẫn chặn.
 REQUIRED = ["/workspaces/", "/workspace/", ".env", ".env.*", "!.env.example", "studio.local.json",
-            "*.wav", "*.mp3", "*.pt", "*.onnx", "*.safetensors", "voices/", "out/"]
+            "*.wav", "*.mp3", "*.m4b", "*.pt", "*.onnx", "*.safetensors", "voices/", "out/"]
 
 
 @pytest.mark.parametrize("line", REQUIRED)
@@ -54,6 +54,7 @@ def _in_git():
     ("a.mp4", True),
     ("some/where/a.mkv", True),
     ("a.mov", True),
+    ("some/where/book.m4b", True),
     ("a.webm", True),
     # thư mục công cụ agent bị bỏ qua, nhưng manifest plugin cùng tiền tố thì KHÔNG
     (".claude/settings.local.json", True),
