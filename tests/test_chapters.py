@@ -187,6 +187,59 @@ def test_bad_manifest_returns_one_json_line_with_code_2(tmp_path, capsys):
     assert json.loads(stdout)["code"] == 2 and not out.exists()
 
 
+@pytest.mark.parametrize(("start", "message"), [
+    (0, "Chương 2 phải bắt đầu sau mốc bắt đầu của chương 1"),
+    (1.249, "Chương 2 chồng lấn với chương 1"),
+])
+def test_manifest_rejects_invalid_chapter_order_or_overlap(tmp_path, capsys, start, message):
+    manifest = _manifest(tmp_path, "archived.mp3")
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    payload["chapters"][1]["start"] = start
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+    out = tmp_path / "out"
+
+    assert cli.main(["chapters", "--manifest", str(manifest), "--out-dir", str(out),
+                     "--json"]) == 2
+    captured = capsys.readouterr()
+    assert message in json.loads(captured.out)["error"]
+    assert message in captured.err
+    assert not out.exists()
+
+
+def test_manifest_accepts_adjacent_decimal_boundaries():
+    chapters = _chapters_module()
+    _, marks = chapters.parse_manifest(json.dumps({
+        "audio": "episode.wav",
+        "chapters": [
+            {"title": "Một", "start": 0, "dur": 0.1},
+            {"title": "Hai", "start": 0.1, "dur": 0.2},
+            {"title": "Ba", "start": 0.3, "dur": 1},
+        ],
+    }))
+    assert [chapter.start for chapter in marks] == [0, 0.1, 0.3]
+
+
+@pytest.mark.parametrize("encode", [False, True])
+def test_chapters_past_audio_end_warns_without_aborting(tmp_path, capsys, encode):
+    from conftest import write_wav
+
+    _ffmpeg_or_skip()
+    audio = tmp_path / "episode.wav"
+    write_wav(audio, seconds=2)
+    manifest = _manifest(tmp_path, audio.name)
+    out = tmp_path / "out"
+    args = ["chapters", "--manifest", str(manifest), "--out-dir", str(out), "--json"]
+    if encode:
+        args.append("--m4b")
+
+    assert cli.main(args) == 0
+    result = capsys.readouterr()
+    assert json.loads(result.out)["chapter_count"] == 2
+    assert "Cảnh báo: chương 2 kết thúc ở 3.000 s, vượt độ dài audio 2.000 s" in result.err
+    assert (out / "chapters.json").is_file()
+    assert (out / "chapters.m4b").is_file() == encode
+
+
 def test_encoder_failure_keeps_previous_export(tmp_path, capsys):
     _ffmpeg_or_skip()
     manifest = _manifest(tmp_path, "bad.wav")

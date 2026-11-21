@@ -69,8 +69,16 @@ def parse_manifest(source: str) -> tuple[str, list[Chapter]]:
         dur = _seconds(row.get("dur"), f"Chương {i}: dur")
         if dur <= 0:
             raise ContractError(f"Chương {i}: dur phải lớn hơn 0.")
-        if (chapters and start <= chapters[-1].start) or (not chapters and start != 0):
-            raise ContractError("Mốc chương phải bắt đầu từ 0 và tăng dần.")
+        if chapters:
+            previous = chapters[-1]
+            if start <= previous.start:
+                raise ContractError(f"Chương {i} phải bắt đầu sau mốc bắt đầu của chương {i - 1}.")
+            previous_end = previous.start + previous.dur
+            # Chấp nhận sai số cộng số thực ở các mốc liền nhau, ví dụ 0.1 + 0.2.
+            if start < previous_end and not math.isclose(start, previous_end, abs_tol=1e-9, rel_tol=0):
+                raise ContractError(f"Chương {i} chồng lấn với chương {i - 1}.")
+        elif start != 0:
+            raise ContractError("Mốc chương đầu tiên phải bắt đầu từ 0.")
         title = title.replace("\r\n", "\n").replace("\r", "\n")
         chapters.append(Chapter(title, start, dur))
     return audio, chapters
@@ -175,6 +183,31 @@ def _run_ffmpeg(exe: str, args: list[str], *, stdout: BinaryIO | None = None) ->
         raise EngineError(f"FFmpeg lỗi (mã {result.returncode}): {detail}")
 
 
+def _warn_past_audio_end(ffmpeg: str, input_args: list[str], chapters: Sequence[Chapter]) -> None:
+    """Thử lấy thời lượng từ đầu vào mà không giải mã toàn bộ audio."""
+    try:
+        result = subprocess.run(
+            [ffmpeg or _env.ffmpeg_exe(), "-nostdin", "-hide_banner", "-v", "info",
+             *input_args, "-map", "0:a:0", "-t", "0", "-c:a", "copy", "-f", "null", "-"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=15,
+        )
+    except (RuntimeError, OSError, subprocess.TimeoutExpired):
+        return  # Xuất TXT/JSON vẫn dùng được khi không đo được audio.
+    if result.returncode:
+        return
+    match = re.search(rb"(?m)^  Duration: (\d+):(\d\d):(\d\d\.\d+),", result.stderr)
+    if not match:
+        return
+    hours, minutes, seconds = map(float, match.groups())
+    duration = hours * 3600 + minutes * 60 + seconds
+    for i, chapter in enumerate(chapters, 1):
+        end = chapter.start + chapter.dur
+        # Dòng Duration của FFmpeg chỉ có độ phân giải 0.01 giây.
+        if end > duration + 0.005:
+            contract.log(f"Cảnh báo: chương {i} kết thúc ở {end:.3f} s, "
+                         f"vượt độ dài audio {duration:.3f} s.")
+
+
 def _join_pcm(
     ffmpeg: str, sources: Sequence[tuple[Path, str]], pcm_path: Path, *, keep_pcm: bool,
 ) -> list[Chapter]:
@@ -272,6 +305,8 @@ def export_chapters(args: argparse.Namespace) -> dict[str, object]:
         raise ContractError("Đường dẫn đầu ra đã bị chiếm bởi thư mục hoặc liên kết.")
 
     ffmpeg = _env.ffmpeg_exe() if sources or args.m4b else ""
+    if audio is not None and (input_args or (audio.suffix.lower() in _AUDIO_FORMATS and audio.is_file())):
+        _warn_past_audio_end(ffmpeg, input_args or _audio_input(audio), chapters)
     out_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".chapters-", dir=out_dir) as scratch:
         stage = Path(scratch)
