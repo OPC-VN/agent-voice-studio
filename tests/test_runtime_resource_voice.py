@@ -177,11 +177,19 @@ def test_voice_never_runs_opcos_runtime_cli(opcos, tmp_path, monkeypatch):
     assert any(" ensure --repo-dir " in c for c in cmds)
 
 
+def test_sep_requirements_pin_audio_separator():
+    lines = _lines("voice_studio/clean/requirements-sep.txt")
+    separator = [line for line in lines if re.match(r"^audio-separator(?:\s|[<>=!~]|$)", line)]
+    assert len(separator) == 1
+    assert re.fullmatch(r"audio-separator\s*(==\S+|>=[^,]+,\s*<\S+)", separator[0])
+    assert "audioread" in lines
+
+
 def test_requirements_and_lock_contents():
     # TK5.1/L6b: venv cũ dùng onnxruntime-gpu; `[cpu]` kéo onnxruntime CPU. Dấu môi trường giữ macOS cài được.
     assert _lines("voice_studio/clean/requirements-sep.txt") == [
-        "audio-separator", 'onnxruntime-gpu; sys_platform == "win32"', 'onnxruntime; sys_platform != "win32"',
-        "soundfile", "librosa==0.11.0"]
+        "audio-separator==0.44.5", 'onnxruntime-gpu; sys_platform == "win32"',
+        'onnxruntime; sys_platform != "win32"', "soundfile", "librosa==0.11.0", "audioread"]
     sep_lock = _lines("locks/sep-windows.txt")
     assert any(ln.startswith("onnxruntime_gpu==") for ln in sep_lock)
     assert not any(re.match(r"onnxruntime==", ln) for ln in sep_lock)   # khoá Windows khớp yêu cầu win32
