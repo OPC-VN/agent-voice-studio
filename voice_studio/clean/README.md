@@ -67,17 +67,17 @@ Nếu `clearvoice` không có bản dựng sẵn cho arm64, xem trang dự án c
 
 `0.44.5` là bản đã chạy theo lock Windows. Giữ ghim `librosa==0.11.0` cho lời gọi
 `get_duration(filename=…)` của bản này và khai rõ `audioread` vì upstream còn thiếu (issue #310).
-Upstream sửa cách gọi `librosa` từ 0.45.0. Bản 0.48.0 yêu cầu torch ≥ 2.13 trên macOS arm64
-và đang chờ kiểm chất lượng tách giọng.
+Upstream sửa cách gọi `librosa` từ 0.45.0. Theo mã upstream v0.48.0, đọc 21/11/2026, bản này yêu cầu
+torch ≥ 2.13 trên macOS arm64. **[Chưa kiểm]** trên máy.
 
 ## Model (~821 MB, không vào repo)
 
 Lần chạy đầu tiên cần mạng: tầng 1 tải `model_bs_roformer_ep_317_sdr_12.9755.ckpt` vào
 `models/`, tầng 2 tải `MossFormer2_SE_48K` vào `checkpoints/`. Các lần sau chạy offline.
 Tổng khoảng 821 MB. Muốn chuyển máy thì chép nguyên hai thư mục này sang, không cần tải lại.
-Hãy nạp sẵn cả hai thư mục cache trước khi chạy trên máy offline. Upstream 0.48.0 thử
-[mirror GitHub Releases](https://github.com/nomadkaraoke/python-audio-separator/releases/tag/model-configs)
-trước cho các model được hỗ trợ và xác thực SHA-256 khi tải. Đây là hành vi của bản đang chờ kiểm.
+Hãy nạp sẵn cả hai thư mục cache trước khi chạy trên máy offline. Theo mã upstream v0.48.0,
+đọc 21/11/2026, bản này thử mirror GitHub Releases trước cho các model được hỗ trợ và xác thực
+SHA-256 khi tải. **[Chưa kiểm]** trên máy. [Đường tải mirror](https://github.com/nomadkaraoke/python-audio-separator/releases/download/model-configs).
 
 `.gitignore` của repo chặn `*.ckpt`, `*.pt`, `*.onnx` — đừng bao giờ mở chặn để commit model.
 
