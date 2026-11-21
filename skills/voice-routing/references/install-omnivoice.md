@@ -98,6 +98,7 @@ Mặc định engine chạy **offline** (`HF_HUB_OFFLINE=1`) để lịch chạy
 `OMNIVOICE_ONLINE=1` mở mạng cho **đúng lần tổng hợp đó** — chỉ lệnh nạp model (`speak`,
 `make-profile`, `narrate`…) mới tải weights; `doctor` thì không bao giờ. Sau đó doctor báo
 `[PASS] weights`. `doctor` thoát mã 3 kèm hướng dẫn nếu còn thiếu gì.
+Snapshot mặc định `k2-fsa/OmniVoice` có sẵn thư mục `audio_tokenizer/`. Engine 0.2.1 chỉ dùng nguồn tokenizer dự phòng nếu snapshot đã chọn thiếu thư mục này.
 
 Thử cả chuỗi không cần ghi âm ai: làm theo `omnivoice/voices/_example/README.md` trong trạm
 (tạo giọng `sample` bằng thiết kế giọng, rồi `voice-studio speak`).

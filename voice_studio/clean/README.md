@@ -46,7 +46,7 @@ Windows (PowerShell):
 
 ```powershell
 py -3.12 -m venv <dir>\.venv-sep
-<dir>\.venv-sep\Scripts\python.exe -m pip install "audio-separator[cpu]" soundfile
+<dir>\.venv-sep\Scripts\python.exe -m pip install "audio-separator[cpu]==0.44.5" "librosa==0.11.0" audioread soundfile
 py -3.12 -m venv <dir>\.venv-cv
 <dir>\.venv-cv\Scripts\python.exe -m pip install clearvoice soundfile "numpy<2"
 ```
@@ -57,7 +57,7 @@ macOS / Linux:
 
 ```bash
 python3.12 -m venv <dir>/.venv-sep
-<dir>/.venv-sep/bin/python -m pip install "audio-separator[cpu]" soundfile
+<dir>/.venv-sep/bin/python -m pip install "audio-separator[cpu]==0.44.5" "librosa==0.11.0" audioread soundfile
 python3.12 -m venv <dir>/.venv-cv
 <dir>/.venv-cv/bin/python -m pip install clearvoice soundfile "numpy<2"
 ```
@@ -65,11 +65,19 @@ python3.12 -m venv <dir>/.venv-cv
 **[chưa kiểm]** trên macOS Apple Silicon: bộ lệnh trên chưa được chạy thật trên máy Mac.
 Nếu `clearvoice` không có bản dựng sẵn cho arm64, xem trang dự án của nó trước khi cài.
 
+`0.44.5` là bản đã chạy theo lock Windows. Giữ ghim `librosa==0.11.0` cho lời gọi
+`get_duration(filename=…)` của bản này và khai rõ `audioread` vì upstream còn thiếu (issue #310).
+Upstream sửa cách gọi `librosa` từ 0.45.0. Bản 0.48.0 yêu cầu torch ≥ 2.13 trên macOS arm64
+và đang chờ kiểm chất lượng tách giọng.
+
 ## Model (~821 MB, không vào repo)
 
 Lần chạy đầu tiên cần mạng: tầng 1 tải `model_bs_roformer_ep_317_sdr_12.9755.ckpt` vào
 `models/`, tầng 2 tải `MossFormer2_SE_48K` vào `checkpoints/`. Các lần sau chạy offline.
 Tổng khoảng 821 MB. Muốn chuyển máy thì chép nguyên hai thư mục này sang, không cần tải lại.
+Hãy nạp sẵn cả hai thư mục cache trước khi chạy trên máy offline. Upstream 0.48.0 thử
+[mirror GitHub Releases](https://github.com/nomadkaraoke/python-audio-separator/releases/tag/model-configs)
+trước cho các model được hỗ trợ và xác thực SHA-256 khi tải. Đây là hành vi của bản đang chờ kiểm.
 
 `.gitignore` của repo chặn `*.ckpt`, `*.pt`, `*.onnx` — đừng bao giờ mở chặn để commit model.
 

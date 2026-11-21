@@ -69,11 +69,20 @@ python của `.venv-cv` — người dùng không phải tự chuyển venv.
 Trên macOS: **[chưa kiểm]** — bộ lệnh cài chưa được chạy thật trên máy Mac; nếu `clearvoice`
 không có bản dựng sẵn cho arm64 thì xem trang dự án của nó trước khi cài.
 
+Tầng tách giọng ghim `audio-separator==0.44.5`, bản theo lock Windows. Bản này cần
+`librosa==0.11.0` do còn dùng `get_duration(filename=…)`. Upstream đã sửa lời gọi từ 0.45.0
+và vẫn thiếu khai báo `audioread` (issue #310), nên yêu cầu cài liệt kê `audioread` tường minh.
+Bản 0.48.0 đang chờ đo chất lượng trên ba clip và cần torch ≥ 2.13 trên macOS arm64.
+
 ## Model không nằm trong repo
 
 Lần chạy đầu cần mạng: tầng 1 tải checkpoint vào `<dir>/models/`, tầng 2 tải vào
 `<dir>/checkpoints/` (máy có OpcOS: hai thư mục con đó nằm dưới `$OPCOS_RUNTIME/engines/agent-voice-studio/clean`). Các lần sau chạy offline. Chuyển máy thì chép nguyên hai thư mục này
 sang, không cần tải lại. Không bao giờ commit file model vào repo.
+
+Máy offline cần có sẵn `models/` và `checkpoints/`. Upstream 0.48.0 thử
+[mirror GitHub Releases](https://github.com/nomadkaraoke/python-audio-separator/releases/tag/model-configs)
+cho model có hỗ trợ và xác thực SHA-256 khi tải.
 
 ## Hai cái bẫy nữa, nên biết trước khi dính
 

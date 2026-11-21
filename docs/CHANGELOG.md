@@ -4,6 +4,13 @@ Mới nhất trước. Mỗi mục là thứ **người dùng** thấy khác đi
 sử git. Số phiên bản ở đây, trong `pyproject.toml`, `voice_studio/__init__.py` và ba manifest
 plugin luôn cùng một số — `tests/test_version_sync.py` đỏ nếu lệch.
 
+## 0.6.0 — 2026-11-21
+
+- Thêm `voice-studio chapters` để xuất mốc chương cho YouTube và sách nói AAC có chương.
+- Ghim `audio-separator==0.44.5` trên mọi nền và khai `audioread` trong yêu cầu cài đặt.
+- Tắt autograd khi wrapper tạo prompt hoặc tổng hợp giọng. MCP chuyển clip tham chiếu về WAV
+  khi cần và dọn tệp tạm sau khi dùng.
+
 ## 0.5.1 — 2026-11-08
 
 - **Engine/venv ở runtime OpcOS khi máy có OpcOS** (SPR-61 TK5): voice khai nhu cầu và tạo/tìm engine ở `runtime/`; máy không có OpcOS giữ hành vi cũ.
