@@ -123,6 +123,7 @@ hai bên không trôi khỏi nhau:
 | Lệnh | Làm gì |
 |---|---|
 | `speak` | text → file audio (hợp đồng ổn định, `--json`, mã 0/1/2/3) |
+| `listen` | audio → transcript + phản biện + giọng trả lời (`--json`) |
 | `narrate` | video câm + lời dẫn → MP4 có giọng (+ nhạc nền) |
 | `make-profile` | tạo profile giọng từ bản ghi / video / instruct |
 | `clone` | dựng profile từ media dài hoặc URL — **cần `--consent`** |

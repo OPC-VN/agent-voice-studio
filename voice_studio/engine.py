@@ -67,6 +67,9 @@ _model_device = None
 
 def apply_offline_env():
     """Mặc định offline; `OMNIVOICE_ONLINE=1` cho phép tải weights."""
+    models_dir = (os.environ.get("VOICE_MODELS_DIR") or "").strip()
+    if models_dir and not (os.environ.get("HF_HUB_CACHE") or "").strip():
+        os.environ["HF_HUB_CACHE"] = os.path.normpath(os.path.abspath(os.path.expanduser(models_dir)))
     if os.environ.get("OMNIVOICE_ONLINE") != "1":
         os.environ.setdefault("HF_HUB_OFFLINE", "1")
         os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
@@ -94,7 +97,7 @@ def pick_device(device=None):
     """
     import torch
     want = (device or os.environ.get("OMNIVOICE_DEVICE") or "").strip().lower()
-    if want:
+    if want and want != "auto":
         kind = want.split(":", 1)[0]
         if kind not in ("cuda", "mps", "cpu"):
             raise ValueError(f"thiết bị không hợp lệ '{want}' — chỉ nhận cuda[:N], mps, cpu")
@@ -161,6 +164,14 @@ def unload():
     """Bỏ model khỏi tiến trình (test, hoặc giải phóng VRAM giữa hai việc nặng)."""
     global _model, _model_device
     _model, _model_device = None, None
+    import gc
+    gc.collect()
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
 
 
 def loaded_device():
@@ -190,8 +201,29 @@ def seed_all(seed):
         torch.mps.manual_seed(seed)
 
 
+def _build_generation_config(num_step=None, guidance_scale=None, denoise=None):
+    """Tạo OmniVoiceGenerationConfig khi người dùng ghi đè tham số lấy mẫu."""
+    if num_step is None and guidance_scale is None and denoise is None:
+        return None
+    kwargs = {}
+    if num_step is not None:
+        kwargs["num_step"] = int(num_step)
+    if guidance_scale is not None:
+        kwargs["guidance_scale"] = float(guidance_scale)
+    if denoise is not None:
+        kwargs["denoise"] = bool(denoise)
+    try:
+        from omnivoice.models.omnivoice import OmniVoiceGenerationConfig
+        return OmniVoiceGenerationConfig(**kwargs)
+    except ModuleNotFoundError as exc:
+        if exc.name and exc.name.split(".")[0] == "omnivoice":
+            from types import SimpleNamespace
+            return SimpleNamespace(**kwargs)
+        raise
+
+
 def synth(text, prompt=None, *, language=DEFAULT_LANGUAGE, speed=1.0, seed=None,
-          instruct=None, model=None):
+          instruct=None, model=None, num_step=None, guidance_scale=None, denoise=None):
     """Tổng hợp một đoạn, trả `(wav, sample_rate)`.
 
     `prompt`: clone prompt đã dựng, HOẶC tên profile (chuỗi), HOẶC None.
@@ -205,12 +237,14 @@ def synth(text, prompt=None, *, language=DEFAULT_LANGUAGE, speed=1.0, seed=None,
         prompt = profiles.get_clone_prompt(m, None)
         if prompt is None:
             profiles.ensure_default()           # ném ProfileError kèm hướng dẫn sửa
+    gen_cfg = _build_generation_config(num_step, guidance_scale, denoise)
+    extra = {"generation_config": gen_cfg} if gen_cfg is not None else {}
     if seed is not None:
         seed_all(seed)
     if prompt is not None:
-        out = m.generate(text=text, language=language, voice_clone_prompt=prompt, speed=speed)
+        out = m.generate(text=text, language=language, voice_clone_prompt=prompt, speed=speed, **extra)
     else:
-        out = m.generate(text=text, language=language, instruct=instruct, speed=speed)
+        out = m.generate(text=text, language=language, instruct=instruct, speed=speed, **extra)
     return out[0], m.sampling_rate
 
 

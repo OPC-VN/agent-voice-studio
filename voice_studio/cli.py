@@ -11,6 +11,7 @@ from . import API_VERSION, __version__, contract
 # tên lệnh -> (module, mô tả một dòng)
 COMMANDS = {
     "speak":        ("voice_studio.speak", "text → file audio (hợp đồng ổn định, --json, mã 0/1/2/3)"),
+    "listen":       ("voice_studio.listen", "audio → transcript + phản biện + giọng trả lời (--json)"),
     "narrate":      ("voice_studio.narrate", "video câm + lời dẫn → MP4 có giọng (+ nhạc nền)"),
     "make-profile": ("voice_studio.make_profile", "tạo profile giọng từ bản ghi / video / instruct"),
     "clone":        ("voice_studio.clone_from_media", "dựng profile từ media dài hoặc URL (cần --consent)"),

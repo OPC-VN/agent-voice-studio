@@ -139,6 +139,7 @@ from drifting apart:
 | Command | Does |
 |---|---|
 | `speak` | text → audio file (the stable contract, `--json`, exit codes 0/1/2/3) |
+| `listen` | audio → transcript + voice critique + spoken reply (`--json`) |
 | `narrate` | silent video + narration → MP4 with voice (+ background music) |
 | `make-profile` | build a voice profile from a recording / video / instruction |
 | `clone` | build a profile from long media or a URL — **requires `--consent`** |
