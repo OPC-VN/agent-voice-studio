@@ -11,14 +11,14 @@ Sau khi venv engine đã cài và `voice-studio doctor` xanh:
 
 ```bash
 voice-studio make-profile --name sample --instruct "female, young adult, moderate pitch"
-voice-studio speak --file omnivoice/voices/_example/sample.txt --profile sample --out out/thu.wav --json
+voice-studio speak --file profiles/_example/sample.txt --profile sample --out out/thu.wav --json
 ```
 
 (Chạy từ gốc trạm.) `make-profile --instruct` đọc một câu mẫu cố định MỘT lần rồi **đóng băng** kết quả thành
-`voices/sample.wav` + `voices/sample.txt`. Từ đó mọi câu dùng cùng một giọng. Từ khoá `--instruct`
+`profiles/sample/voice/sample.wav` + `sample.txt`. Từ đó mọi câu dùng cùng một giọng. Từ khoá `--instruct`
 là bộ tiếng Anh của OmniVoice (giới tính, tuổi, cao độ…); đổi từ khoá là ra giọng khác.
 
-Muốn dùng làm mặc định: thêm `--set-default`, hoặc ghi `sample` vào `voices/_default.txt`.
+Muốn dùng làm mặc định: thêm `--set-default`, hoặc ghi `sample` vào `profiles/_default.txt`.
 
 ## Giọng thật của bạn
 

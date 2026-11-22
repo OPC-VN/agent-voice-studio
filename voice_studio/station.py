@@ -515,6 +515,12 @@ def _copy_template(dst, created):
                 created.append(os.path.relpath(target, dst).replace(os.sep, "/"))
 
 
+def _is_legacy_layout(st):
+    """Trạm cũ (kho phẳng `omnivoice/voices`, chưa có `profiles/`) — init/--existing không được dựng cây mới lên nó."""
+    return (os.path.isdir(os.path.join(st, "omnivoice", "voices"))
+            and not os.path.isdir(os.path.join(st, _env.PROFILES_DIRNAME)))
+
+
 def _station_json(st, mode, existing):
     path = os.path.join(st, _env.STATION_FILE)
     cur, err = _env.read_json(path)
@@ -524,12 +530,15 @@ def _station_json(st, mode, existing):
     t = _template_dir()
     if t:
         base = _env.read_json(os.path.join(t, _env.STATION_FILE))[0]
-    voices = os.path.join(st, "omnivoice", "voices")
+    legacy_layout = _is_legacy_layout(st)
     default = None
-    dfile = os.path.join(voices, "_default.txt")
-    if os.path.isfile(dfile):
-        with open(dfile, "r", encoding="utf-8") as f:
-            default = f.read().strip() or None
+    for dfile in (os.path.join(st, _env.PROFILES_DIRNAME, "_default.txt"),
+                  os.path.join(st, "omnivoice", "voices", "_default.txt")):
+        if os.path.isfile(dfile):
+            with open(dfile, "r", encoding="utf-8") as f:
+                default = f.read().strip() or None
+            if default:
+                break
     # Venv engine: trạm ĐÃ có venv trong trạm (trạm cũ/đang chạy) giữ dạng tương đối như trước; trạm MỚI
     # trên máy có OpcOS ghi đường TUYỆT ĐỐI tới `runtime/venvs/agent-voice-studio/omnivoice` (FR6.1);
     # máy không có OpcOS: `omnivoice/.venv`. `data.update(cur)` bên dưới vẫn giữ giá trị đã có (FR6.2).
@@ -544,8 +553,10 @@ def _station_json(st, mode, existing):
         "default_profile": default,
         "venv": venv_value,
         "engine_dir": "omnivoice",
-        "bgm_dir": "assets/bgm",
+        "bgm_dir": "assets/bgm" if legacy_layout else "music/library",
     }
+    if not legacy_layout:
+        computed.update({"profiles_dir": "profiles", "music_dir": "music"})
     data = {k: v for k, v in base.items() if not k.startswith("_")}
     data.update(computed)
     data.update(cur)                      # giá trị người dùng đã sửa luôn thắng
@@ -606,6 +617,24 @@ def _install_hook(repo):
     return "installed"
 
 
+LEGACY_SUBS = ("omnivoice/voices", "assets/bgm", "out", "cache")      # trạm cũ đang chạy: giữ nguyên bố cục
+NEW_SUBS = ("profiles", "music/library", "out", "archive", "cache")  # trạm mới: cây profiles/ + music/
+
+
+def _count_profiles(st):
+    """Số profile dùng được trong trạm `st` (kiểu mới ∪ kiểu cũ), đếm trực tiếp trên đĩa."""
+    names = set()
+    legacy = os.path.join(st, "omnivoice", "voices")
+    if os.path.isdir(legacy):
+        names |= {n[:-4] for n in os.listdir(legacy) if n.endswith(".wav") and not n.startswith("_")}
+    root = os.path.join(st, _env.PROFILES_DIRNAME)
+    if os.path.isdir(root):
+        for n in os.listdir(root):
+            if _env.is_profile_folder(n) and os.path.isfile(os.path.join(root, n, "voice", n + ".wav")):
+                names.add(n)
+    return len(names)
+
+
 def do_init(station=None, mode=None, existing=False, yes=False, dry_run=False, ask=None,
             non_interactive=False):
     choice = choose_mode(station=station, mode=mode, yes=yes, ask=ask, non_interactive=non_interactive)
@@ -618,9 +647,9 @@ def do_init(station=None, mode=None, existing=False, yes=False, dry_run=False, a
         raise ContractError(f"đường trạm trỏ vào một FILE, không phải thư mục: {st}")
     if existing and not os.path.isdir(st):
         raise ContractError(f"--existing nhưng không có thư mục trạm: {st}")
-    voices = os.path.join(st, "omnivoice", "voices")
-    res["profiles"] = (len([n for n in os.listdir(voices) if n.endswith(".wav")
-                            and not n.startswith("_")]) if os.path.isdir(voices) else 0)
+    res["profiles"] = _count_profiles(st)
+    legacy_layout = _is_legacy_layout(st)
+    subs = LEGACY_SUBS if legacy_layout else NEW_SUBS
     if dry_run:
         if then_migrate:                         # xem trước: chưa dời, chưa ghi gì
             res["would_migrate"] = {"from": st, "to": then_migrate}
@@ -628,10 +657,9 @@ def do_init(station=None, mode=None, existing=False, yes=False, dry_run=False, a
     created = res["created"]
     if existing:
         # Trạm đang chạy: CHỈ ghi station.json — không tạo thư mục, không rải file mẫu.
-        res["missing"] = [sub for sub in ("omnivoice/voices", "assets/bgm", "out", "cache")
-                          if not os.path.isdir(os.path.join(st, *sub.split("/")))]
+        res["missing"] = [sub for sub in subs if not os.path.isdir(os.path.join(st, *sub.split("/")))]
     else:
-        for sub in ("omnivoice/voices", "assets/bgm", "out", "cache"):
+        for sub in subs:
             d = os.path.join(st, *sub.split("/"))
             if not os.path.isdir(d):
                 try:
@@ -643,7 +671,7 @@ def do_init(station=None, mode=None, existing=False, yes=False, dry_run=False, a
                         f"không tạo được thư mục trạm {st}: {e}." +
                         (" Kiểm giá trị OPCOS_WORKSPACES." if from_var else " Kiểm đường dẫn trạm."))
                 created.append(sub + "/")
-        bgm.init_library(os.path.join(st, "assets", "bgm"))
+        bgm.init_library(os.path.join(st, *(("assets", "bgm") if legacy_layout else ("music", "library"))))
         _copy_template(st, created)
     path, data, changed, venv_exists = _station_json(st, mode, existing)
     if changed:
@@ -758,7 +786,7 @@ def init_main(argv=None):
 
 # ── export --personal / import ─────────────────────────────────────────────────────────
 
-PERSONAL_ROOTS = ("omnivoice/voices", "assets/bgm")
+PERSONAL_ROOTS = ("omnivoice/voices", "assets/bgm")          # kiểu cũ (còn gói được nếu trạm chưa dời)
 
 
 def _walk(root, rel_root):
@@ -772,10 +800,27 @@ def _walk(root, rel_root):
             yield full, os.path.relpath(full, root).replace(os.sep, "/")
 
 
-def personal_files(st):
+def personal_roots(st, with_lab=False):
+    """Thư mục (tương đối theo trạm) vào gói `export --personal`: voice/ của từng profile, music/library, và
+    kho kiểu cũ nếu còn. `with_lab` thêm lab/ của từng profile. raw/ KHÔNG bao giờ vào gói."""
+    roots = list(PERSONAL_ROOTS) + ["music/library"]
+    pd = os.path.join(st, _env.PROFILES_DIRNAME)
+    if os.path.isdir(pd):
+        for n in sorted(os.listdir(pd)):
+            if _env.is_profile_folder(n) and os.path.isdir(os.path.join(pd, n)):
+                roots.append(f"{_env.PROFILES_DIRNAME}/{n}/voice")
+                if with_lab:
+                    roots.append(f"{_env.PROFILES_DIRNAME}/{n}/lab")
+    return roots
+
+
+def personal_files(st, with_lab=False):
     files = []
-    for r in PERSONAL_ROOTS:
+    for r in personal_roots(st, with_lab):
         files += [(f, rel) for f, rel in _walk(st, r) if not _skip_file(rel)]
+    dflt = os.path.join(st, _env.PROFILES_DIRNAME, "_default.txt")
+    if os.path.isfile(dflt):
+        files.append((dflt, f"{_env.PROFILES_DIRNAME}/_default.txt"))
     sj = os.path.join(st, _env.STATION_FILE)
     if os.path.isfile(sj):
         files.append((sj, _env.STATION_FILE))
@@ -798,16 +843,16 @@ def _zip(files, out, manifest):
     return out
 
 
-def export_personal(st, out):
+def export_personal(st, out, with_lab=False):
     st = _env._expand(st)
     if not os.path.isdir(st):
         raise StationMissing(f"không có trạm giọng: {st} (chạy `voice-studio init`). {_env.OLD_DATA_HINT}")
-    files = personal_files(st)
+    files = personal_files(st, with_lab)
     bad = [rel for _, rel in files if _is_secret_name(rel)]
     if bad:
         raise ContractError("từ chối đóng gói — có file trông như secret: " + ", ".join(bad) +
                             ". Dời chúng về kho secret rồi chạy lại.")
-    manifest = {"kind": "personal", "contract": API_VERSION, "voice_studio": __version__,
+    manifest = {"kind": "personal", "contract": API_VERSION, "with_lab": bool(with_lab), "voice_studio": __version__,
                 "created": datetime.datetime.now().isoformat(timespec="seconds"),
                 "files": [rel for _, rel in files]}
     path = _zip(files, out, manifest)
@@ -879,10 +924,13 @@ def import_personal(zip_path, st, force=False):
 def export_main(argv=None):
     ap = argparse.ArgumentParser(
         prog="voice-studio export",
-        description="Đóng gói giọng cá nhân để chuyển máy: voices/ (+ _default.txt), assets/bgm/, "
-                    "station.json. Không venv, không cache, không *.prompt.pt; từ chối file giống secret.")
+        description="Đóng gói giọng cá nhân để chuyển máy: profiles/*/voice/ (+ _default.txt), music/library/, "
+                    "station.json (trạm kiểu cũ: omnivoice/voices, assets/bgm). Không venv, cache, raw/, lab/, "
+                    "*.prompt.pt; từ chối file giống secret.")
     ap.add_argument("--personal", action="store_true", help="gói dữ liệu cá nhân (bắt buộc)")
     ap.add_argument("--out", required=True, help="file zip đích")
+    ap.add_argument("--with-lab", action="store_true",
+                    help="kèm profiles/*/lab/ (chỗ đào clip + ứng viên; nặng, dựng lại được). raw/ không bao giờ vào gói")
     ap.add_argument("--station", help="trạm nguồn (mặc định: trạm đang phân giải)")
     ap.add_argument("--json", action="store_true")
     args, code = contract.parse(ap, argv)
@@ -893,7 +941,7 @@ def export_main(argv=None):
         if not a.personal:
             raise ContractError("bản này chỉ hỗ trợ `export --personal`; sao lưu cả trạm: "
                                 "`voice-studio backup`")
-        res = export_personal(a.station or _env.station_dir(), a.out)
+        res = export_personal(a.station or _env.station_dir(), a.out, with_lab=a.with_lab)
         contract.log(f"[export] {len(res['files'])} file → {res['out']}")
         return res
     return contract.run(fn, args, args.json)
@@ -1492,6 +1540,21 @@ def migrate_main(argv=None):
         contract.log(f"[migrate] trạm giờ ở {res['station']} — đặt VOICE_STATION trỏ vào đó")
         return res
     return contract.run(fn, args, args.json)
+
+
+def station_main(argv=None):
+    """`voice-studio station <lệnh con>` — hiện có: `migrate-layout`."""
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if not argv or argv[0] in ("-h", "--help"):
+        print("Cách dùng: voice-studio station migrate-layout [--dry-run|--apply|--undo] [--station P] "
+              "[--map file.json] [--json]\n  migrate-layout  dời trạm kiểu cũ sang cây profiles/ + music/ "
+              "(có sổ, --undo đảo chính xác, không xoá gì)")
+        return contract.OK if argv else contract.CONTRACT_ERROR
+    if argv[0] != "migrate-layout":
+        contract.log(f"lệnh con lạ: '{argv[0]}' (có: migrate-layout)")
+        return contract.CONTRACT_ERROR
+    from . import layout
+    return layout.main(argv[1:])
 
 
 def update_main(argv=None):

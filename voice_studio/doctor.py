@@ -28,7 +28,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from . import API_VERSION, __version__, _env, contract, engine
+from . import API_VERSION, __version__, _env, contract, engine, layout as _layout
 
 INSTALL_HINT = (
     "Cài trạm giọng: tạo venv → cài torch theo hệ điều hành → "
@@ -206,7 +206,7 @@ def opcos_check(src):
     tried = _env.opcos_dir()
     if src in (_env.WORKSPACE, _env.UNSET):
         return _check("opcos-station", False, f"OPCOS_WORKSPACES={base}: {tried} chưa là trạm",
-                      level="warn", hint="thư mục đó chưa có station.json hoặc omnivoice/voices/ — bỏ qua nếu "
+                      level="warn", hint="thư mục đó chưa có station.json, profiles/ hoặc omnivoice/voices/ — bỏ qua nếu "
                                          "không định dùng trạm OpcOS")
     return None
 
@@ -260,18 +260,69 @@ def run_checks():
         return checks + engine_checks()
 
     from . import profiles
-    vd = profiles.voices_dir()
-    names = profiles.list_profiles() if os.path.isdir(vd) else []
-    checks.append(_check("voices", os.path.isdir(vd), f"{vd} ({len(names)} profile)",
-                         hint="chưa có kho giọng — `voice-studio init` rồi `voice-studio make-profile`"))
-    default = profiles.get_default() if names else None
-    checks.append(_check("default-profile", bool(default), default or "(không có)", level="warn",
-                         hint="chưa có profile mặc định — ghi tên vào voices/_default.txt "
-                              "hoặc đặt VOICE_DEFAULT_PROFILE; pipeline phải truyền --profile"))
+    checks += layout_checks(st, profiles)
 
     checks.append(bgm_check(_env.bgm_dir()))
 
     return checks + engine_checks()
+
+
+def layout_checks(st, profiles):
+    """Kho giọng + cây trạm: kiểu mới (`profiles/`) hay kiểu cũ (kho phẳng), mặc định, biến môi trường lệch cây,
+    `.gitignore` của trạm git. Kiểu cũ vẫn PASS (đọc được) — chỉ nhắc cách dời."""
+    out = []
+    new = profiles.layout() == "new"
+    recs = profiles.profile_records()
+    names = [r["name"] for r in recs]
+    if new:
+        pd = profiles.profiles_dir()
+        legacy_n = sum(1 for r in recs if r["kind"] == "legacy")
+        extra = f", còn {legacy_n} ở kho phẳng cũ" if legacy_n else ""
+        out.append(_check("profiles", True, f"{pd} ({len(names)} profile{extra})"))
+        if legacy_n:
+            out.append(_check("layout", False, f"{legacy_n} profile còn ở kho phẳng cũ", level="warn",
+                              hint="dời nốt bằng `voice-studio station migrate-layout --dry-run`"))
+    else:
+        vd = profiles.voices_dir() if profiles._legacy_dir() else "(chưa xác định)"
+        out.append(_check("voices", os.path.isdir(vd), f"{vd} ({len(names)} profile, kho phẳng kiểu cũ)",
+                          hint="chưa có kho giọng — `voice-studio init` rồi `voice-studio make-profile`"))
+        if names:
+            out.append(_check("layout", True, "kiểu cũ (kho phẳng) — vẫn đọc/ghi được; sang cây profiles/: "
+                                              "`voice-studio station migrate-layout --dry-run`"))
+    default = profiles.get_default() if names else None
+    out.append(_check("default-profile", bool(default), default or "(không có)", level="warn",
+                      hint="chưa có profile mặc định — đặt station.json: default_profile (hoặc profiles/_default.txt "
+                           "ở trạm mới, <kho>/_default.txt ở trạm cũ), hoặc VOICE_DEFAULT_PROFILE; pipeline phải truyền --profile"))
+    if new:
+        out += env_layout_checks(st)
+        un = _layout.gitignore_unprotected(st)
+        if un:
+            out.append(_check("gitignore", False, "trạm là git nhưng .gitignore chưa chặn: " + ", ".join(un),
+                              level="warn",
+                              hint="bản ghi thô/lab/sản phẩm sẽ lọt vào git — chạy `voice-studio station "
+                                   "migrate-layout --apply` (tự thêm dòng) hoặc thêm tay /profiles/*/raw/, "
+                                   "/profiles/*/lab/, /profiles/*/products/, /music/generated/, /out/, /archive/"))
+    return out
+
+
+def env_layout_checks(st):
+    """Biến môi trường còn ghim đường kiểu cũ trong khi trạm đã là kiểu mới."""
+    out = []
+    want = {"OMNIVOICE_DIR": None,
+            "VOICE_STUDIO_WORK": os.path.join(st, "out"),
+            "VOICE_BGM_DIR": os.path.join(st, "music", "library"),
+            "VOICES_DIR": None}
+    for name, ok_path in want.items():
+        val = _env.env(name)
+        if not val:
+            continue
+        if ok_path and os.path.normcase(os.path.abspath(os.path.expanduser(val))) == os.path.normcase(ok_path):
+            continue
+        out.append(_check(f"env-{name.lower().replace('_', '-')}", False, f"{name}={val}", level="warn",
+                          hint=f"trạm đã dùng cây profiles/ — gỡ biến {name} (đặt VOICE_STATION=<gốc trạm> là đủ); "
+                               "còn đặt thì lệnh có thể đọc/ghi chỗ cũ"))
+    return out
+
 
 
 BGM_DOC = "docs/bgm-generation.md"
@@ -439,7 +490,10 @@ def doctor(args):
     errors = [c["name"] for c in checks if c["level"] == "error"]
     warns = [c["name"] for c in checks if c["level"] == "warn"]
     unchecked = [c["name"] for c in checks if c["level"] == NOT_CHECKED]
+    from . import profiles
     result = {"voice_studio": API_VERSION, "version": __version__, "station": _env.resolve_station()[0],
+              "profiles_dir": profiles.profiles_dir(), "voices_dir": profiles._legacy_dir(),
+              "layout": profiles.layout() if _env.resolve_station()[0] else None,
               "checks": checks, "errors": errors, "warnings": warns, "not_checked": unchecked}
     if errors:
         contract.log("\n" + INSTALL_HINT)

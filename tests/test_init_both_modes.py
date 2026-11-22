@@ -43,13 +43,15 @@ def never_ask(_prompt):
 
 def tree_ok(st):
     assert (st / "station.json").is_file()
-    assert (st / "omnivoice" / "voices").is_dir()
-    assert (st / "assets" / "bgm" / "bgm-library.json").is_file()
-    assert (st / "out").is_dir() and (st / "cache").is_dir()
+    assert (st / "profiles").is_dir()
+    assert not (st / "omnivoice").exists()            # trạm mới không dựng omnivoice/ nữa
+    assert (st / "music" / "library" / "bgm-library.json").is_file()
+    assert (st / "out").is_dir() and (st / "cache").is_dir() and (st / "archive").is_dir()
     info = json.loads((st / "station.json").read_text(encoding="utf-8"))
     assert info["contract"] == API_VERSION
-    for key in ("device", "default_profile", "venv", "engine_dir", "bgm_dir", "mode"):
+    for key in ("device", "default_profile", "venv", "engine_dir", "bgm_dir", "mode", "profiles_dir", "music_dir"):
         assert key in info
+    assert info["bgm_dir"] == "music/library" and info["profiles_dir"] == "profiles"
     return info
 
 
@@ -69,7 +71,7 @@ def test_enter_means_embedded(repo, home):
     assert local["mode"] == "embedded" and local["station_path"] == "workspaces"
     assert "secrets" in local
     # cây mẫu được chép: giọng ví dụ trung tính (không audio)
-    assert (ws / "omnivoice" / "voices" / "_example" / "README.md").is_file()
+    assert (ws / "profiles" / "_example" / "README.md").is_file()
     assert not list(ws.rglob("*.wav"))
     # từ giờ mọi script phân giải ra đúng trạm này
     st, src = _env.resolve_station()
@@ -463,7 +465,7 @@ def test_rerun_keeps_user_edits(repo, tmp_path):
     info = json.loads((st / "station.json").read_text(encoding="utf-8"))
     info["device"] = "cpu"
     (st / "station.json").write_text(json.dumps(info), encoding="utf-8")
-    lib = st / "assets" / "bgm" / "bgm-library.json"
+    lib = st / "music" / "library" / "bgm-library.json"
     lib.write_text('{"styles": []}', encoding="utf-8")
     station.do_init(station=str(st))
     assert json.loads((st / "station.json").read_text(encoding="utf-8"))["device"] == "cpu"

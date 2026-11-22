@@ -8,12 +8,16 @@ cái nào là nội dung, cái nào là quản lý, cái nào được sao lưu,
 `docs/WORKSPACE.md` của repo.
 
 ```
-station.json          cấu hình trạm (hợp đồng, venv, thư mục engine, thư viện nhạc nền)
-omnivoice/.venv/      venv engine (máy không có OpcOS) — bạn tự tạo theo lệnh `init` in ra; máy có OpcOS: ở runtime/
-omnivoice/voices/     kho profile giọng: <tên>.wav + <tên>.txt, _default.txt
-assets/bgm/           thư viện nhạc nền: bgm-library.json + <style>.mp3
-out/                  output và nháp (VOICE_STUDIO_WORK)
+station.json          cấu hình trạm (hợp đồng, venv, profiles_dir, music_dir, bgm_dir, default_profile)
+profiles/<tên>/       MỖI GIỌNG MỘT THƯ MỤC: voice/ (clip tham chiếu) · raw/ · lab/ · report/ · products/ · README.md
+profiles/_default.txt tên profile mặc định (tuỳ chọn; station.json: default_profile thắng)
+music/library/       thư viện nhạc nền: bgm-library.json + <style>.mp3
+music/channels/      nhạc nhận diện từng kênh (intro/outro/nền riêng)
+music/generated/     bản thô sinh bằng MusicGen (nháp)
+out/                  output và nháp, xoá được (VOICE_STUDIO_WORK)
+archive/              đồ nghỉ hưu: archive/<ngày>-<slug>/
 cache/                cache dựng lại được
+omnivoice/.venv/      venv engine CHỈ khi máy không có OpcOS — bạn tự tạo theo lệnh `init` in ra; máy có OpcOS: ở runtime/
 ```
 
 Kiểm trạm: `voice-studio doctor`. Sao lưu: `voice-studio backup --out <file.zip>`.

@@ -22,6 +22,7 @@ COMMANDS = {
     "bgm":          ("voice_studio.bgm", "thư viện nhạc nền: list | pick <style>"),
     "tts":          ("voice_studio.tts", "đọc nhanh một câu ra file"),
     "ui":           ("voice_studio.ui", "giao diện web cục bộ để nghe thử"),
+    "profiles":     ("voice_studio.profiles_cmd", "liệt kê profile giọng của trạm: list [--json] (kiểu mới ∪ cũ)"),
     "doctor":       ("voice_studio.doctor", "kiểm trạm giọng, chỉ bước cài còn thiếu"),
     "mcp":          ("voice_studio.mcp_server", "chạy MCP server (stdio) cho agent"),
     "lab":          (None, "bộ dựng profile đa sắc thái: mine | build | split | organize"),
@@ -30,6 +31,7 @@ COMMANDS = {
     "import":       ("voice_studio.station:import_main", "nhập gói giọng cá nhân"),
     "backup":       ("voice_studio.station:backup_main", "zip cả trạm (không venv/cache/out)"),
     "migrate":      ("voice_studio.station:migrate_main", "chuyển trạm embedded ra ngoài repo"),
+    "station":      ("voice_studio.station:station_main", "vận hành cây trạm: migrate-layout (dời sang profiles/, có sổ, --undo)"),
     "update":       ("voice_studio.station:update_main", "cập nhật repo (git pull --ff-only)"),
     "uninstall":    ("voice_studio.station:uninstall_main", "gỡ package + hook, GIỮ trạm và giọng (--dry-run)"),
 }

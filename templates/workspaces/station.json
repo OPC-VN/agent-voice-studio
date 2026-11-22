@@ -1,10 +1,12 @@
 {
-  "_doc": "Mẫu station.json. `voice-studio init` tự viết bản thật ở gốc trạm (bỏ các khoá bắt đầu bằng _). Đường dẫn tương đối tính theo gốc trạm. `venv`: `omnivoice/.venv` khi máy không có OpcOS; trạm MỚI trên máy có OpcOS được ghi đường tuyệt đối tới runtime/venvs/agent-voice-studio/omnivoice (giá trị đã có luôn được giữ). Xem docs/WORKSPACE.md.",
-  "contract": "1.1.0",
+  "_doc": "Mẫu station.json. `voice-studio init` tự viết bản thật ở gốc trạm (bỏ các khoá bắt đầu bằng _). Đường dẫn tương đối tính theo gốc trạm. Kiểu mới: profiles/<tên>/voice/ (profiles_dir), music/library (bgm_dir); engine_dir chỉ còn để đọc trạm cũ. `venv`: `omnivoice/.venv` khi máy không có OpcOS; trạm MỚI trên máy có OpcOS được ghi đường tuyệt đối tới runtime/venvs/agent-voice-studio/omnivoice (giá trị đã có luôn được giữ). Xem docs/WORKSPACE.md.",
+  "contract": "1.2.0",
   "mode": "embedded",
   "device": null,
   "default_profile": null,
   "venv": "omnivoice/.venv",
   "engine_dir": "omnivoice",
-  "bgm_dir": "assets/bgm"
+  "profiles_dir": "profiles",
+  "music_dir": "music",
+  "bgm_dir": "music/library"
 }

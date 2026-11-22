@@ -42,10 +42,12 @@ def _in_git():
     (".env.local", True),
     (".env.example", False),
     ("studio.local.json", True),
-    ("templates/workspaces/omnivoice/voices/_example/README.md", False),
+    ("templates/workspaces/profiles/_example/README.md", False),
+    ("templates/workspaces/archive/README.md", False),
     ("templates/workspaces/out/README.md", False),
-    ("templates/workspaces/omnivoice/voices/a.wav", True),
-    ("templates/workspaces/omnivoice/voices/a.prompt.pt", True),
+    ("templates/workspaces/profiles/a/voice/a.wav", True),
+    ("templates/workspaces/profiles/a/voice/a.prompt.pt", True),
+    ("templates/workspaces/music/library/a.mp3", True),
     ("templates/workspaces/out/a.mp3", True),
     ("some/where/voices/a.txt", True),
     # gói giọng `export --personal` + video có tiếng: ví dụ README ghi ra .zip, `git add .` là rò
@@ -139,24 +141,26 @@ T = ROOT / "templates" / "workspaces"
 
 
 def test_template_tree_complete():
-    for rel in ("README.md", "station.json", "omnivoice/voices/_example/README.md",
-                "omnivoice/voices/_example/sample.txt", "assets/bgm/README.md",
-                "assets/bgm/bgm-library.json", "out/README.md", "cache/README.md"):
+    for rel in ("README.md", "station.json", "profiles/README.md", "profiles/_example/README.md",
+                "profiles/_example/sample.txt", "music/library/README.md",
+                "music/library/bgm-library.json", "out/README.md", "cache/README.md", "archive/README.md"):
         assert (T / rel).is_file(), rel
+    assert not (T / "omnivoice").exists() and not (T / "assets").exists()
     assert not [p for p in T.rglob("*") if p.suffix.lower() in (".wav", ".mp3", ".pt")]
 
 
 def test_template_bgm_matches_code():
-    assert json.loads((T / "assets/bgm/bgm-library.json").read_text(encoding="utf-8")) == \
+    assert json.loads((T / "music/library/bgm-library.json").read_text(encoding="utf-8")) == \
         bgm.SAMPLE_LIBRARY
-    assert (T / "assets/bgm/README.md").read_text(encoding="utf-8") == bgm.README_TEXT
+    assert (T / "music/library/README.md").read_text(encoding="utf-8") == bgm.README_TEXT
 
 
 def test_template_station_json_contract():
     info = json.loads((T / "station.json").read_text(encoding="utf-8"))
     assert info["contract"] == API_VERSION
-    for key in ("device", "default_profile", "venv", "engine_dir", "bgm_dir"):
+    for key in ("device", "default_profile", "venv", "engine_dir", "bgm_dir", "profiles_dir", "music_dir"):
         assert key in info
+    assert info["bgm_dir"] == "music/library" and info["profiles_dir"] == "profiles"
 
 
 # ── pyproject ──────────────────────────────────────────────────────────────────────────
