@@ -1,7 +1,7 @@
 # Sinh nhạc nền bằng MusicGen
 
 Repo **không phát hành file nhạc nào**, và cũng **không có lệnh `voice-studio` nào sinh nhạc** —
-vì giấy phép weights (dưới). Thư viện nhạc nền của trạm (`<trạm>/assets/bgm/`, đổi bằng
+vì giấy phép weights (dưới). Thư viện nhạc nền của trạm (`<trạm>/music/library/`, đổi bằng
 `VOICE_BGM_DIR`; `<trạm>` theo `VOICE_STATION`, mặc định `<repo>/workspaces/`) do bạn tự lấp: tự sinh
 bằng MusicGen theo hướng dẫn này, hoặc bỏ vào nhạc bạn có quyền dùng.
 
@@ -44,7 +44,7 @@ python extras/musicgen/gen_pack.py --model small --seconds 20       # thử nhan
 
 - Bảng style ở `extras/musicgen/styles.json`: `name` (= tên file `<name>.mp3`), `mood`/`use`
   (mô tả cho người chọn), `prompt` (tiếng Anh — MusicGen hiểu mô tả tiếng Anh tốt nhất).
-- Nhạc ghi thẳng vào thư viện của trạm (`VOICE_BGM_DIR`, mặc định `<trạm>/assets/bgm/`), và
+- Nhạc ghi thẳng vào thư viện của trạm (`VOICE_BGM_DIR`, mặc định `<trạm>/music/library/`), và
   style được **thêm** vào `bgm-library.json`. Mô tả, style mặc định, âm lượng bạn đã chỉnh
   **không bị đè**. File đã có thì bỏ qua; `--force` để sinh lại.
 - Kiểm: `voice-studio bgm list` — không style nào báo `[THIẾU FILE]`; `voice-studio doctor` dòng
@@ -58,7 +58,7 @@ python extras/musicgen/gen.py --prompt "calm ambient pad, 80 BPM, instrumental" 
 
 Mặc định ghi vào `<trạm>/out/musicgen/` (thư mục làm việc của trạm — đổi bằng `VOICE_STUDIO_WORK`;
 không bao giờ trong repo). Nghe thử, ưng thì chép vào thư viện (`VOICE_BGM_DIR`, mặc định
-`<trạm>/assets/bgm/`) và khai trong `bgm-library.json`.
+`<trạm>/music/library/`) và khai trong `bgm-library.json`.
 
 ## Viết prompt cho nhạc nền
 

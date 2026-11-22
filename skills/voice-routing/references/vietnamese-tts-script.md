@@ -104,7 +104,7 @@ Tên riêng nước ngoài ít gặp (một lần thử nghe `Claude` thành "Cl
 Một marker giữ hiệu lực **đến marker kế tiếp**. Đoạn không gắn marker dùng clip trung tính
 của profile.
 
-Tên marker lấy từ profile, không phải tự nghĩ ra — đọc `voices/<profile>.profile.json` trước.
+Tên marker lấy từ profile, không phải tự nghĩ ra — đọc `<profile>.profile.json` trong thư mục giọng (`profiles/<profile>/voice/`) trước, hoặc `voice-studio profiles list --json` để biết giọng có bao nhiêu marker.
 Marker không có trong manifest sẽ bị gỡ bỏ và đoạn đó quay về marker đang có hiệu lực, chỉ
 được báo bằng một dòng console rất dễ bỏ qua.
 

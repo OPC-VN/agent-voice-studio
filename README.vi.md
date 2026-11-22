@@ -93,7 +93,7 @@ Chế độ `embedded` là "clone là chạy": `init` dựng sẵn cây trạm v
 `pre-commit` chặn lần nữa. `.env` giữ **đường dẫn và cấu hình**, không bao giờ giữ token.
 
 Trạm giọng là nơi chứa venv, giọng, nhạc nền, output của anh — từng thư mục giải thích ở
-[`docs/WORKSPACE.md`](docs/WORKSPACE.md). Nhạc nền tự sinh: [`docs/bgm-generation.md`](docs/bgm-generation.md).
+[`docs/WORKSPACE.md`](docs/WORKSPACE.md). Mỗi giọng một thư mục `profiles/<tên>/` (clip tham chiếu ở `voice/`, bản ghi gốc `raw/`, `lab/`, `report/`, `products/`); nhạc ở `music/`. Trạm kiểu cũ (kho phẳng `omnivoice/voices`) vẫn chạy, dời bằng `voice-studio station migrate-layout`. Nhạc nền tự sinh: [`docs/bgm-generation.md`](docs/bgm-generation.md).
 
 Cài như plugin cho agent:
 
@@ -142,6 +142,8 @@ hai bên không trôi khỏi nhau:
 | `import` | nhập gói giọng cá nhân |
 | `backup` | zip cả trạm (không venv/cache/out) |
 | `migrate` | chuyển trạm embedded ra ngoài repo |
+| `profiles` | `profiles list [--json]`: liệt kê giọng của trạm (kiểu mới `profiles/<tên>/voice/` ∪ kho phẳng cũ), mặc định, số marker |
+| `station` | `station migrate-layout [--dry-run\|--apply\|--undo]`: dời trạm cũ (`omnivoice/voices`, `assets/bgm`) sang cây `profiles/` + `music/`, có sổ, `--undo` đảo chính xác |
 | `update` | cập nhật repo (`git pull --ff-only`) |
 | `uninstall` | gỡ package + hook pre-commit, **giữ** trạm và giọng (`--dry-run` xem trước) |
 

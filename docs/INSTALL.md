@@ -153,7 +153,7 @@ in bảng lựa chọn rồi thoát **mã 2, chưa ghi byte nào**. Agent cài p
 xem, **không tự chọn im lặng**. Máy đã đặt `OPCOS_WORKSPACES` thì chỗ đặt đã biết: `--yes` (hay
 chạy không người) dựng trạm `<biến>/voice`.
 
-`init` dựng `station.json` và cây trạm (`omnivoice/voices/`, `assets/bgm/`, `out/`, `cache/`). Nó
+`init` dựng `station.json` và cây trạm (`profiles/`, `music/library/`, `out/`, `archive/`, `cache/`; không còn `omnivoice/`). Nó
 **không** tạo venv và **không** tải model — chỉ in lệnh. Từng thư mục giải thích ở
 [`WORKSPACE.md`](WORKSPACE.md).
 

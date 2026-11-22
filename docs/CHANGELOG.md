@@ -4,6 +4,28 @@ Mới nhất trước. Mỗi mục là thứ **người dùng** thấy khác đi
 sử git. Số phiên bản ở đây, trong `pyproject.toml`, `voice_studio/__init__.py` và ba manifest
 plugin luôn cùng một số — `tests/test_version_sync.py` đỏ nếu lệch.
 
+## 0.7.0 — 2026-11-22
+
+**Trạm giọng đổi bố cục: mỗi giọng một thư mục.** Hợp đồng `API_VERSION` 1.2.0 (thêm khoá, không phá khoá cũ).
+
+- Cây trạm mới: `profiles/<tên>/{voice,raw,lab,report,products}/` + `music/{library,channels,generated}/` + `out/` +
+  `archive/`. Clip tham chiếu của một giọng nằm ở `profiles/<tên>/voice/<tên>.wav` (tên file bên trong không đổi).
+  `station.json` thêm `profiles_dir`, `music_dir`; `bgm_dir` mặc định `music/library`; `default_profile` được đọc trước.
+- **Trạm cũ vẫn chạy:** loader đọc kiểu mới trước, lùi về kho phẳng `<engine>/voices`; liệt kê = hợp hai nguồn, kiểu
+  mới thắng, bỏ thư mục `_x`, `.x`, `archive`, so tên theo NFC. Profile mới ghi vào kiểu mới khi trạm đã có `profiles/`.
+- Lệnh mới `voice-studio profiles list [--json]` (tên, kiểu, số marker, mặc định, thư mục giọng) để pipeline khác
+  không phải đọc thẳng thư mục kho. JSON `doctor`, `make-profile`, `clone`, MCP `get_status` thêm `profiles_dir`
+  (giữ `voices_dir`).
+- Lệnh mới `voice-studio station migrate-layout [--dry-run|--apply|--undo] [--map file.json]`: dời trạm cũ sang cây
+  mới, chỉ dời không xoá, có sổ, `--undo` đảo chính xác; tự thêm dòng chặn raw/lab/products/out/archive vào
+  `.gitignore` của trạm git trước khi dời. Thứ ngoài hợp đồng được liệt kê là "cần dời tay" kèm gợi ý đích.
+- `candidates.json` của `lab mine` ghi đường tương đối; bản cũ ghi đường tuyệt đối vẫn đọc được (lùi về `clips/<tên file>`).
+  `lab organize` ghi sổ tay/ref/demo vào `profiles/<tên>/`.
+- `init` dựng `profiles/`, `music/library`, `out/`, `archive/` (không còn `omnivoice/`); `export --personal` gói
+  `profiles/*/voice` + `music/library` + `station.json`, thêm `--with-lab`; `raw/` không bao giờ vào gói.
+- `doctor` kiểm cây mới, cảnh báo biến `OMNIVOICE_DIR`, `VOICE_STUDIO_WORK`, `VOICE_BGM_DIR`, `VOICES_DIR` còn đặt lệch
+  cây mới, và `.gitignore` của trạm git chưa chặn raw/lab/products.
+
 ## 0.6.0 — 2026-11-21
 
 - Thêm `voice-studio chapters` để xuất mốc chương cho YouTube và sách nói AAC có chương.

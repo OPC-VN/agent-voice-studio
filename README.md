@@ -103,8 +103,8 @@ to `<repo>/.env` for you to fill in. Both `workspaces/` and `.env` are blocked b
 `.gitignore` and again by the `pre-commit` hook. `.env` holds **paths and configuration**,
 never tokens.
 
-The station holds your venv, voices, background music and output — every folder is described in
-[`docs/WORKSPACE.md`](docs/WORKSPACE.md). Generating background music: [`docs/bgm-generation.md`](docs/bgm-generation.md).
+The station holds your voices (`profiles/<name>/voice/`, one folder per voice with its raw recordings, lab, reports and products), background music (`music/`), output and archive — every folder is described in
+[`docs/WORKSPACE.md`](docs/WORKSPACE.md). An older station (flat `omnivoice/voices`) keeps working; move it with `voice-studio station migrate-layout`. Generating background music: [`docs/bgm-generation.md`](docs/bgm-generation.md).
 
 As an agent plugin:
 
@@ -158,6 +158,8 @@ from drifting apart:
 | `import` | unpack a personal voice pack |
 | `backup` | zip the whole station (no venv/cache/out) |
 | `migrate` | move an embedded station out of the repo |
+| `profiles` | `profiles list [--json]`: voice profiles of the station (new `profiles/<name>/voice/` layout + old flat store), default, marker count |
+| `station` | `station migrate-layout [--dry-run\|--apply\|--undo]`: move an old station (flat `omnivoice/voices`, `assets/bgm`) to the `profiles/` + `music/` tree, with a ledger and exact undo |
 | `update` | update the clone (`git pull --ff-only`) |
 | `uninstall` | remove the package + pre-commit hook, **keep** the station and voices (`--dry-run` to preview) |
 

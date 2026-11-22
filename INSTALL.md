@@ -204,7 +204,7 @@ Mỗi dòng: `[TRẠNG THÁI] khu vực chi tiết`, có thể kèm một dòng 
 |---|---|---|
 | `[PASS]` | đã kiểm, đạt | — |
 | `[PASS] samples` | bài mẫu đúng kỳ vọng (mục 8) | — |
-| `[FAIL] station` / `voices` | trạm chưa dựng hoặc chưa xác định | làm lại mục 6 |
+| `[FAIL] station` / `voices` | trạm chưa dựng hoặc chưa xác định (`[PASS] profiles` = trạm kiểu mới; `voices` = kho phẳng kiểu cũ) | làm lại mục 6 |
 | `[FAIL] two-sources` | vừa có `workspaces/` vừa có trạm ngoài | **dừng**, hỏi người dùng giữ trạm nào |
 | `[FAIL] torch` / `omnivoice` | engine chưa cài | **bình thường khi chưa làm phần B**; doctor thoát mã 3 vì vậy |
 | `[WARN] default-profile` | chưa có giọng nào | bình thường với máy mới; tạo profile là việc sau cài |

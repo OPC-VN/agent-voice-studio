@@ -83,8 +83,9 @@ voice-studio init --station <đường trạm>      # separate, không hỏi
 voice-studio init --station <trạm cũ> --existing   # nhận trạm đang chạy: chỉ ghi station.json
 ```
 
-`init` dựng `station.json`, `omnivoice/voices/`, `assets/bgm/` (khung thư viện nhạc nền, không
-mp3), `out/`, `cache/`. Nó **không** tạo venv, không tải model — chỉ in lệnh.
+`init` dựng `station.json`, `profiles/` (mỗi giọng một thư mục), `music/library/` (khung thư viện nhạc nền, không
+mp3), `out/`, `archive/`, `cache/` (không còn `omnivoice/`; trạm kiểu cũ có `omnivoice/voices/` vẫn chạy, dời bằng
+`voice-studio station migrate-layout`). Nó **không** tạo venv, không tải model — chỉ in lệnh.
 
 **6. Kiểm, rồi tải weights ở lần tổng hợp đầu:**
 
@@ -100,7 +101,7 @@ Mặc định engine chạy **offline** (`HF_HUB_OFFLINE=1`) để lịch chạy
 `[PASS] weights`. `doctor` thoát mã 3 kèm hướng dẫn nếu còn thiếu gì.
 Snapshot mặc định `k2-fsa/OmniVoice` có sẵn thư mục `audio_tokenizer/`. Engine 0.2.1 chỉ dùng nguồn tokenizer dự phòng nếu snapshot đã chọn thiếu thư mục này.
 
-Thử cả chuỗi không cần ghi âm ai: làm theo `omnivoice/voices/_example/README.md` trong trạm
+Thử cả chuỗi không cần ghi âm ai: làm theo `profiles/_example/README.md` trong trạm
 (tạo giọng `sample` bằng thiết kế giọng, rồi `voice-studio speak`).
 
 ## Biến môi trường
@@ -119,14 +120,14 @@ echo 'export VOICE_STATION=<đường trạm>' >> ~/.zshrc
 |---|---|---|
 | `VOICE_STATION` | gốc trạm giọng | theo thứ tự trong `docs/WORKSPACE.md` |
 | `OMNIVOICE_DIR` | **tên cũ** — trỏ thư mục engine (`<trạm>/omnivoice`); vẫn đọc được, `doctor` nhắc đổi | — |
-| `VOICES_DIR` | kho profile | `<trạm>/omnivoice/voices` |
-| `VOICE_DEFAULT_PROFILE` | profile mặc định khi không có `_default.txt` | — |
+| `VOICES_DIR` | kho PHẲNG kiểu cũ (trạm đã có `profiles/` không cần) | `<trạm>/omnivoice/voices` |
+| `VOICE_DEFAULT_PROFILE` | profile mặc định khi `station.json: default_profile` / `_default.txt` không chọn | — |
 | `OMNIVOICE_DEVICE` | ép thiết bị `cuda` / `mps` / `cpu` | tự chọn `cuda → mps → cpu` |
 | `OMNIVOICE_DTYPE` | ép độ chính xác `float16` / `float32` / `auto` | `cuda`,`mps` → float16 · `cpu` → float32 |
 | `HF_DEACTIVATE_ASYNC_LOAD` | tắt nạp weights bất đồng bộ của transformers | `1` sẵn trên macOS (xem dưới) |
 | `OMNIVOICE_ONLINE` | `1` = cho phép tải từ Hugging Face | tắt (offline) |
-| `VOICE_BGM_DIR`, `VOICE_BGM`, `VOICE_BGM_VOL` | thư viện nhạc nền · file nhạc cho một lần ghép · âm lượng | `<trạm>/assets/bgm` · — · 0.10 |
-| `VOICE_STUDIO_WORK` | output tạm + chỗ làm việc của `lab` | `<trạm>/out` |
+| `VOICE_BGM_DIR`, `VOICE_BGM`, `VOICE_BGM_VOL` | thư viện nhạc nền · file nhạc cho một lần ghép · âm lượng | `<trạm>/music/library` (trạm cũ: `assets/bgm`) · — · 0.10 |
+| `VOICE_STUDIO_WORK` | output tạm (+ chỗ làm việc của `lab` ở trạm kiểu cũ; kiểu mới: `profiles/<tên>/lab/`) | `<trạm>/out` |
 | `FFMPEG_DIR` | thư mục chứa ffmpeg/ffprobe | PATH |
 
 Tên biến nhạc nền của bản cũ vẫn đọc được một phiên bản, kèm cảnh báo; `doctor` chỉ ra tên cần đổi.

@@ -12,17 +12,27 @@ và không có tham số cảm xúc. Xem `engine-limits.md`.
 ## Trên đĩa
 
 ```
-voices/
-    <name>.wav  .txt  .prompt.pt      ← neutral clip, FLAT, non-negotiable
-    <name>.profile.json               ← manifest
-    <name>.variants/
-        <marker>.wav  .txt  .prompt.pt
+profiles/<name>/                       ← trạm kiểu mới: MỖI GIỌNG MỘT THƯ MỤC
+    voice/
+        <name>.wav  .txt  .prompt.pt   ← neutral clip, ngang hàng, tên file KHÔNG đổi
+        <name>.profile.json            ← manifest
+        <name>.variants/
+            <marker>.wav  .txt  .prompt.pt
+    raw/  lab/  report/  products/  README.md
+profiles/_default.txt                  ← (tuỳ chọn) tên profile mặc định; station.json: default_profile thắng
 ```
 
-**Clip trung tính nằm phẳng trong `voices/`.** Loader đơn giản đọc đúng `voices/<name>.wav` +
-`.txt`, và pipeline ghim giọng theo tên. Giữ hợp đồng đó nghĩa là profile nhiều phong cách vẫn
-chạy được ở mọi nơi profile thường chạy — chỉ là nó nói bằng giọng trung tính. Thư mục con của
-profile không làm bẩn danh sách profile, vì việc liệt kê chỉ quét `*.wav` ở cấp trên cùng.
+Trạm kiểu cũ giữ nguyên bố cục phẳng: `<kho>/<name>.wav` + `.txt` + `.profile.json` + `<name>.variants/` với kho =
+`VOICES_DIR` hoặc `<engine>/voices`. Loader đọc `profiles/<name>/voice/` TRƯỚC rồi lùi về kho phẳng; liệt kê giọng =
+hợp hai nơi, kiểu mới thắng. Xem danh sách bằng `voice-studio profiles list --json`; dời trạm cũ sang cây mới bằng
+`voice-studio station migrate-layout --dry-run`.
+
+**Clip trung tính nằm cạnh manifest, tên file là hợp đồng.** Loader đơn giản đọc đúng `<name>.wav` +
+`.txt` trong thư mục giọng, và pipeline ghim giọng theo tên. Giữ hợp đồng đó nghĩa là profile nhiều phong cách vẫn
+chạy được ở mọi nơi profile thường chạy — chỉ là nó nói bằng giọng trung tính. Đường `wav` trong manifest tương đối
+theo thư mục giọng nên dời cả thư mục đi đâu cũng đọc lại được. Thư mục `raw/ lab/ report/ products/` của giọng không
+làm bẩn danh sách profile: chỉ thư mục có `voice/<name>.wav` mới được tính, và thư mục bắt đầu bằng `_`, `.` hay tên
+`archive` bị bỏ qua.
 
 Manifest cho mỗi variant: đường dẫn wav tương đối, transcript của nó, speed tuỳ chọn, nguồn
 (file và offset), các đặc trưng đã đo, và dấu thời gian build. Nguồn và dấu thời gian quan

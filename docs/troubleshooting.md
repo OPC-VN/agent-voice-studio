@@ -16,7 +16,7 @@ chưa đủ. `[NOT_CHECKED]` **không phải lỗi**: doctor nói thẳng điề
 |---|---|---|
 | `[FAIL] station (chưa xác định)` | cài dạng wheel (không có repo) và chưa đặt `VOICE_STATION` | đặt `VOICE_STATION=<thư mục trạm>` rồi `voice-studio init --station <thư mục đó>` |
 | `[FAIL] station <đường>` | trạm chưa dựng | `voice-studio init` |
-| `[FAIL] voices` | trạm có nhưng thiếu `omnivoice/voices/` | `voice-studio init` (chạy lại an toàn, không đè gì) |
+| `[FAIL] voices` (trạm kiểu cũ) | trạm có nhưng thiếu kho phẳng `omnivoice/voices/` | `voice-studio init` (trạm kiểu mới: kiểm `profiles/` bằng `[PASS] profiles`) (chạy lại an toàn, không đè gì) |
 | `[FAIL] torch` / `omnivoice` | đang chạy bằng python không có engine | gọi bằng python của **venv engine** (`<trạm>/omnivoice/.venv`; máy có OpcOS: `$OPCOS_RUNTIME/venvs/agent-voice-studio/omnivoice`), hoặc cài engine theo [install-omnivoice.md](../skills/voice-routing/references/install-omnivoice.md) |
 | `[FAIL] two-sources` | vừa có `<repo>/workspaces/` vừa có trạm ngoài (biến hoặc `studio.local.json: separate`) | giữ **một** trạm: gộp dữ liệu, rồi xoá `workspaces/` hoặc gỡ biến; hoặc `voice-studio migrate --to separate` |
 
@@ -33,6 +33,14 @@ Trạm nằm ở đâu khi không đặt gì: `<repo>/workspaces/`. Thứ tự t
 | `[WARN] runtime` — `RT_NO_OPCOS` | máy không có OpcOS (không `OPCOS_RUNTIME`, `OPCOS_ROOT`, `~/OpcOS/paths.json`) | không sao nếu plugin cài lẻ: venv ở trong trạm như trước; có OpcOS thì đặt `OPCOS_RUNTIME` rồi `opcos-runtime ensure --repo-dir <repo>` |
 | `[WARN] runtime` — `RT_ORPHAN` | venv engine nằm dưới `$OPCOS_RUNTIME/venvs/agent-voice-studio/` nhưng thiếu `.opcos-resource.json` (dựng tay, không qua `opcos-runtime`) | dựng lại bằng `opcos-runtime ensure --repo-dir <repo>`; đừng tạo venv trong `workspaces/` trên máy có OpcOS (`opcos-runtime audit` báo đỏ) |
 | `[WARN] win-path` | gốc venv quá dài khi Windows chưa bật đường dài: gốc + `dir_rel` > 248 (thư mục) hoặc gốc + `file_rel` > 260 (tệp); venv có `.opcos-resource.json` dùng 109/150, venv dựng tay (torch không ghim) dùng 186/197 | đặt runtime/trạm ở đường ngắn; `LongPathsEnabled` là việc của quản trị máy |
+
+## Biến còn đặt lệch cây mới — `[WARN] env-omnivoice-dir` · `env-voice-bgm-dir` · `env-voice-studio-work` · `env-voices-dir`
+
+Trạm đã dùng `profiles/` mà máy còn đặt `OMNIVOICE_DIR`, `VOICE_BGM_DIR`, `VOICE_STUDIO_WORK` hoặc `VOICES_DIR` trỏ chỗ cũ:
+lệnh có thể đọc/ghi nhạc, chỗ đào clip, kho phẳng ở chỗ cũ. Gỡ biến (chỉ cần `VOICE_STATION=<gốc trạm>`), mở lại terminal/app.
+`[WARN] gitignore`: trạm là git mà `.gitignore` chưa chặn raw/lab/products — bản ghi thô sẽ lọt vào git; thêm
+`/profiles/*/raw/`, `/profiles/*/lab/`, `/profiles/*/products/`, `/music/generated/`, `/out/`, `/archive/`
+(hoặc chạy `voice-studio station migrate-layout --apply`, nó tự thêm).
 
 ## Tên biến cũ — `[WARN] env-name`
 

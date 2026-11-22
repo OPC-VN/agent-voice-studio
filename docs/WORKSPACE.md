@@ -99,24 +99,42 @@ với mã 3 kèm cách đặt.
 
 ```
 <trạm>/
-├── station.json          QUẢN LÝ   cấu hình trạm
-├── omnivoice/
-│   ├── .venv/            QUẢN LÝ   venv engine (torch, omnivoice, voice_studio) — máy không có OpcOS
-│   └── voices/           CONTENT   kho profile giọng
-│       ├── <tên>.wav     CONTENT   clip tham chiếu
-│       ├── <tên>.txt     CONTENT   lời của clip
-│       ├── <tên>.profile.json  CONTENT  profile đa sắc thái (nếu có)
-│       ├── _default.txt  QUẢN LÝ   tên profile mặc định
-│       ├── <tên>.prompt.pt  QUẢN LÝ  cache clone prompt (dựng lại được)
-│       └── _example/     MẪU       hướng dẫn tạo giọng ví dụ trung tính
-├── assets/bgm/           CONTENT   thư viện nhạc nền: bgm-library.json + <style>.mp3
-├── out/                  NHÁP      output tạm + chỗ làm việc của `voice-studio lab`
+├── station.json          QUẢN LÝ   cấu hình trạm (contract 1.2: profiles_dir, music_dir, bgm_dir, default_profile)
+├── profiles/
+│   ├── _default.txt      QUẢN LÝ   tên profile mặc định (station.json: default_profile thắng)
+│   ├── _example/         MẪU       hướng dẫn tạo giọng ví dụ trung tính
+│   └── <tên>/            MỖI GIỌNG MỘT THƯ MỤC
+│       ├── voice/        CONTENT   clip tham chiếu — GIỮ NGUYÊN tên file:
+│       │   ├── <tên>.wav · <tên>.txt          clip + lời của clip
+│       │   ├── <tên>.profile.json · <tên>.variants/   profile đa sắc thái (nếu có)
+│       │   └── <tên>.prompt.pt                QUẢN LÝ  cache clone prompt (dựng lại được)
+│       ├── raw/          CONTENT   bản ghi gốc (nặng; profile gốc giữ, profile dẫn xuất chỉ trỏ trong README.md)
+│       ├── lab/          NHÁP      chỗ làm việc của `voice-studio lab` (candidates.json, clips/)
+│       ├── report/       CONTENT   hồ sơ kiểm của giọng
+│       ├── products/     NHÁP      demo, bản đọc thử về giọng này (`lab organize`: ref.wav, demo/)
+│       └── README.md     CONTENT   nguồn, mốc cắt, lịch sử
+├── music/
+│   ├── library/          CONTENT   thư viện nhạc nền: bgm-library.json + <style>.mp3   (= station.json: bgm_dir)
+│   ├── channels/<kênh>/  CONTENT   nhạc nhận diện kênh: nền riêng, intro, outro (+ tracks.json: nguồn, giấy phép)
+│   └── generated/        NHÁP      bản thô sinh bằng MusicGen
+├── out/                  NHÁP      output tạm, xoá được
+├── archive/<ngày>-<slug>/  CẤT     giọng nghỉ hưu, mã cũ — chỉ dời vào, không xoá thẳng
+├── omnivoice/.venv/      QUẢN LÝ   venv engine — CHỈ khi máy không có OpcOS (trạm mới không dựng `omnivoice/` nữa)
 └── cache/                NHÁP      cache công cụ
 ```
 
+`archive/` nằm ở **gốc trạm**, không nằm trong `profiles/` (nếu không, loader sẽ coi `archive` là một giọng). Thư mục
+dưới `profiles/` bắt đầu bằng `_` hoặc `.` cũng không phải giọng. Tên profile so theo Unicode NFC (macOS lưu tên
+thư mục dạng NFD; tên có dấu nên đổi sang ASCII khi có thể).
+
+**Trạm kiểu cũ** (kho phẳng `omnivoice/voices/<tên>.*`, `assets/bgm/`, `<work>/lab/<tên>/`) **vẫn chạy**: loader đọc
+`profiles/<tên>/voice/` trước, lùi về kho phẳng; liệt kê giọng = hợp hai nơi, bỏ trùng (kiểu mới thắng). Profile mới
+tạo (`make-profile`, `lab build`, `clone`) ghi vào kiểu mới khi trạm đã có `profiles/`, ngược lại vẫn kiểu cũ. Dời
+trạm cũ sang cây mới bằng `voice-studio station migrate-layout` (mục *Vận hành*). Biến `VOICES_DIR` chỉ còn là
+"kho phẳng kiểu cũ"; gỡ `OMNIVOICE_DIR`, `VOICE_STUDIO_WORK`, `VOICE_BGM_DIR` khi trạm đã sang cây mới (`doctor` nhắc).
+
 Tuỳ chọn, bạn tự thêm khi cần: `voice-clean/` (công cụ làm sạch bản ghi + model, xem
-`voice_studio/clean/README.md`), `musicgen/` (nếu chạy sinh nhạc riêng), `data/`, `.raw/` (bản ghi
-gốc). Chúng không do `init` tạo.
+`voice_studio/clean/README.md`). Không do `init` tạo; ngoài hợp đồng của plugin.
 
 **Máy có OpcOS:** venv engine KHÔNG nằm trong trạm mà ở `$OPCOS_RUNTIME/venvs/agent-voice-studio/omnivoice`
 (dọn giọng `…/sep`, `…/cv`; mô hình dọn giọng `$OPCOS_RUNTIME/engines/agent-voice-studio/clean`, gồm `models/` và
@@ -128,15 +146,22 @@ OpcOS — `opcos-runtime audit` sẽ báo đỏ. Máy không có OpcOS: venv tro
 
 | Thư mục / file | Loại | Mục đích | Ai / cái gì ghi | `export --personal` | `backup` | Nhạy cảm | Xoá được? |
 |---|---|---|---|---|---|---|---|
-| `station.json` | quản lý | hợp đồng (`contract`), chế độ, `venv`, `engine_dir`, `bgm_dir`, `device`, `default_profile` | `init`; bạn sửa tay được | có | có | không | xoá ⇒ `init --existing` dựng lại |
+| `station.json` | quản lý | hợp đồng (`contract`), chế độ, `venv`, `engine_dir`, `profiles_dir`, `music_dir`, `bgm_dir`, `device`, `default_profile` | `init`, `migrate-layout`; bạn sửa tay được | có | có | không | xoá ⇒ `init --existing` dựng lại |
 | `omnivoice/.venv/` (máy không có OpcOS) | quản lý | Python + torch + engine + package `voice_studio` | bạn, theo lệnh `init` in ra | **không** (cài lại ở máy mới) | **không** | không | được — tạo lại venv là xong |
-| `omnivoice/voices/*.wav, *.txt, *.profile.json` | **content** | giọng của bạn | `make-profile`, `clone`, `lab build`, `lab split` | có | có | **CÓ** — dữ liệu sinh trắc gần đúng | **không** — mất là phải dựng lại từ bản ghi |
-| `omnivoice/voices/_default.txt` | quản lý | profile mặc định | `make-profile --set-default`, bạn | có | có | không | được (mất mặc định: lệnh phải truyền `--profile`) |
-| `omnivoice/voices/*.prompt.pt` | quản lý | cache clone prompt, nhanh gấp ~50 lần lần gọi đầu | engine tự ghi | **không** | **không** | thấp | được — tự dựng lại |
-| `omnivoice/voices/_example/` | mẫu | hướng dẫn giọng ví dụ | `init` chép từ repo | có (vô hại) | có | không | được |
-| `assets/bgm/bgm-library.json` | content | style, style mặc định, âm lượng | `init` (khung), `gen_pack.py`, bạn | có | có | không | không nên |
-| `assets/bgm/<style>.mp3` | content | nhạc nền | bạn / MusicGen (`docs/bgm-generation.md`) | có | có | giấy phép nhạc | được nếu còn nguồn |
-| `out/` (= `VOICE_STUDIO_WORK`) | nháp | output mặc định, `out/lab/<tên>/` của bộ dựng giọng | mọi lệnh | **không** | **không** | **CÓ** — audio giọng thật | được, trừ khi đang giữa mẻ `lab mine → build` |
+| `profiles/<tên>/voice/*.wav, *.txt, *.profile.json, *.variants/` | **content** | giọng của bạn | `make-profile`, `clone`, `lab build`, `lab split` | có | có | **CÓ** — dữ liệu sinh trắc gần đúng | **không** — mất là phải dựng lại từ bản ghi |
+| `profiles/_default.txt` | quản lý | profile mặc định | `make-profile --set-default`, bạn | có | có | không | được (mất mặc định: lệnh phải truyền `--profile`) |
+| `profiles/<tên>/voice/*.prompt.pt` | quản lý | cache clone prompt, nhanh gấp ~50 lần lần gọi đầu | engine tự ghi | **không** | **không** | thấp | được — tự dựng lại |
+| `profiles/<tên>/raw/` | **content** | bản ghi gốc dùng dựng giọng | bạn | **không** (nặng) | có | **CÓ** — giọng thật | **không** nên — dựng lại giọng cần nó |
+| `profiles/<tên>/lab/` | nháp | `candidates.json` + `clips/` của `lab mine` (đường tương đối) | `lab mine`, `lab build` | chỉ khi `--with-lab` | có | **CÓ** | được, trừ khi đang giữa mẻ `lab mine → build` |
+| `profiles/<tên>/report/`, `README.md` | content | hồ sơ kiểm, sổ tay của giọng | bạn, `lab organize` | không | có | thấp | không nên |
+| `profiles/<tên>/products/` | nháp | demo, bản đọc thử về giọng đó | `lab organize`, bạn | không | có | **CÓ** | được |
+| `profiles/_example/` | mẫu | hướng dẫn giọng ví dụ | `init` chép từ repo | không | có | không | được |
+| `music/library/bgm-library.json` | content | style, style mặc định, âm lượng | `init` (khung), `gen_pack.py`, bạn | có | có | không | không nên |
+| `music/library/<style>.mp3` | content | nhạc nền | bạn / MusicGen (`docs/bgm-generation.md`) | có | có | giấy phép nhạc | được nếu còn nguồn |
+| `music/channels/<kênh>/` | content | nhạc riêng của kênh (nền, intro, outro) + `tracks.json` | bạn | không (chép tay nếu cần) | có | giấy phép nhạc | không nên |
+| `music/generated/` | nháp | bản thô MusicGen (CC-BY-NC: kênh kiếm tiền không dùng) | `extras/musicgen` | không | có | giấy phép | được — sinh lại được |
+| `out/` (= `VOICE_STUDIO_WORK`) | nháp | output mặc định | mọi lệnh | **không** | **không** | **CÓ** — audio giọng thật | được |
+| `archive/<ngày>-<slug>/` | cất | giọng nghỉ hưu, mã cũ, kho `_archive` cũ | `migrate-layout`, bạn | không | có | **CÓ** | **không** nên — chỉ dời vào |
 | `cache/` | nháp | cache công cụ | công cụ | không | không | thấp | được |
 
 Weights của engine (~3,3 GB) **không** nằm trong trạm mà trong cache Hugging Face (`HF_HOME`,
@@ -149,8 +174,10 @@ không tải gì).
 |---|---|---|
 | Kiểm trạm | `voice-studio doctor` | ĐỎ khi vừa có `workspaces/` vừa có trạm ngoài; embedded: kiểm `workspaces/`, `.env` không bị git theo dõi, repo không nằm trong OneDrive/Drive/iCloud/Dropbox, `.env` quyền 600 |
 | Cập nhật repo | `voice-studio update` | = `git pull --ff-only`. **Không bao giờ** xoá hay `git clean`. **Đừng xoá folder repo để cài lại** — ở chế độ embedded đó là xoá luôn giọng của bạn |
-| Sao lưu | `voice-studio backup --out trạm.zip` | cả trạm trừ venv, `cache/`, `out/`, `*.prompt.pt`; `.env` chỉ kèm khi thêm `--with-env` |
-| Chuyển máy | `voice-studio export --personal --out giong.zip` → máy mới: `voice-studio import giong.zip` | gói `voices/`, `assets/bgm/`, `station.json`; từ chối file trông như secret (`*token*`, `*secret*`, `.env`…); `import` không đè file trùng trừ khi `--force` |
+| Sao lưu | `voice-studio backup --out trạm.zip` | cả trạm (gồm `profiles/*/raw/`) trừ venv, `cache/`, `out/`, `*.prompt.pt`; `.env` chỉ kèm khi thêm `--with-env` |
+| Chuyển máy | `voice-studio export --personal --out giong.zip` → máy mới: `voice-studio import giong.zip` | gói `profiles/*/voice/`, `profiles/_default.txt`, `music/library/`, `station.json` (trạm cũ: `omnivoice/voices/`, `assets/bgm/`); **không** gói `raw/`, `lab/`, `products/` — thêm `--with-lab` để kèm `lab/`; từ chối file trông như secret (`*token*`, `*secret*`, `.env`…); `import` không đè file trùng trừ khi `--force` |
+| Xem giọng của trạm | `voice-studio profiles list [--json]` | tên, kiểu (`new` = `profiles/<tên>/voice/`, `legacy` = kho phẳng cũ), số marker, mặc định, thư mục giọng. Pipeline khác (marketing, video) gọi lệnh này thay vì đọc thẳng thư mục kho |
+| Dời trạm cũ sang cây mới | `voice-studio station migrate-layout [--dry-run\|--apply\|--undo] [--station P] [--map file.json]` | mặc định `--dry-run`. Chỉ **dời, không xoá**; có sổ `<trạm>/.layout-ledger/layout-<giờ>.json` (đường tương đối + sha256), `--undo` đảo lần dời gần nhất theo thứ tự ngược; bước hỏng giữa chừng tự hoàn tác. Dời: kho giọng → `profiles/<tên>/voice/`, sổ tay organize → `README.md` + `products/`, `_default.txt`, `_archive` → `archive/<ngày>-voices/`, `assets/bgm` → `music/library`, `<work>/lab/<tên>` → `profiles/<tên>/lab`, `station.json` lên 1.2. Trạm là git: tự thêm vào `.gitignore` các dòng chặn `/profiles/*/raw/`, `/profiles/*/lab/`, `/profiles/*/products/`, `/music/generated/`, `/out/`, `/archive/` (và `!/profiles/*/voice/**/*.wav` để clip tham chiếu vẫn vào git) TRƯỚC khi dời, kiểm bằng `git check-ignore`, không chặn được thì dừng. Thứ ngoài hợp đồng (raw/<nguồn>, out/<profile>, musicgen, truyện…) chỉ được liệt kê là "cần dời tay" kèm gợi ý đích; dời chúng bằng `--map` (`{"moves":[{"from","to"}],"rename":{"cũ":"mới"}}`, đường tương đối theo trạm; `rename` không áp cho profile có manifest) — cũng vào sổ, cũng `--undo` được |
 | Tách trạm ra ngoài | `voice-studio migrate --to separate [--station DIR]` | dời `workspaces/` → DIR, `.env` → `~/.secret/voice-studio/.env`, ghi lại `studio.local.json`; đích phải rỗng. Thiếu `--station` thì HỎI nơi dời (gợi ý `<OPCOS_WORKSPACES>/voice` nếu có), hiện đường tuyệt đối + số file và dung lượng (KB/MB) và xin xác nhận y/N; từ chối đích nằm trong chính `workspaces/`; đường dán có ngoặc kép (Copy as path) được bóc; không có người trả lời thì dừng mã 2 (`--non-interactive` cũng vậy) — không có đích mặc định |
 
 ## Rào của chế độ embedded (init tự dựng)

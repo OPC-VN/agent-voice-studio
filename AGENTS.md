@@ -12,7 +12,7 @@ chép skill hay engine sang trạm; không đưa giọng vào repo.
 | Ở đâu | Chứa gì |
 |---|---|
 | Repo (git theo dõi) | package `voice_studio`, lệnh `voice-studio`, skill `skills/voice-routing/`, tài liệu, test |
-| Trạm giọng (git bỏ qua) | profile giọng (`omnivoice/voices/`), nhạc nền, output (`out/`), `station.json`; venv engine **chỉ khi máy không có OpcOS** |
+| Trạm giọng (git bỏ qua) | profile giọng (`profiles/<tên>/voice/`, cạnh `raw/` `lab/` `report/` `products/`; trạm cũ: kho phẳng `omnivoice/voices/`), nhạc nền (`music/`), output nháp (`out/`), đồ cất (`archive/`), `station.json`; venv engine **chỉ khi máy không có OpcOS** |
 | Runtime OpcOS (máy có OpcOS) | venv engine `$OPCOS_RUNTIME/venvs/agent-voice-studio/omnivoice`, venv dọn giọng `…/sep`, `…/cv`; mô hình dọn giọng `$OPCOS_RUNTIME/engines/agent-voice-studio/clean` |
 
 Trạm nằm ở đâu — mọi lệnh dùng chung một thứ tự (chi tiết `docs/WORKSPACE.md`):
@@ -55,6 +55,8 @@ cờ `--consent`).
 |---|---|
 | Kiểm trạm, biết còn thiếu gì | `voice-studio doctor` (`--json` cho máy đọc) |
 | Đọc text ra audio (hợp đồng ổn định) | `voice-studio speak --file script.txt --out out.mp3 --json` |
+| Liệt kê giọng của trạm (cho pipeline khác) | `voice-studio profiles list --json` |
+| Dời trạm kiểu cũ sang cây `profiles/` | `voice-studio station migrate-layout --dry-run` rồi `--apply` (có sổ, `--undo`) |
 | Dựng profile từ bản ghi đã được đồng ý | `voice-studio make-profile …` · `voice-studio lab mine` rồi `lab build` |
 | Chuyển máy | `voice-studio export --personal --out <ngoài trạm>/voice.zip` → `voice-studio import` |
 | Gỡ | `voice-studio uninstall --dry-run` rồi `--yes` (giữ trạm) |
