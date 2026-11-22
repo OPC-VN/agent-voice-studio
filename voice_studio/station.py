@@ -800,10 +800,13 @@ def _walk(root, rel_root):
             yield full, os.path.relpath(full, root).replace(os.sep, "/")
 
 
-def personal_roots(st, with_lab=False):
+def personal_roots(st, with_lab=False, with_music_channels=False):
     """Thư mục (tương đối theo trạm) vào gói `export --personal`: voice/ của từng profile, music/library, và
-    kho kiểu cũ nếu còn. `with_lab` thêm lab/ của từng profile. raw/ KHÔNG bao giờ vào gói."""
+    kho kiểu cũ nếu còn. `with_lab` thêm lab/ của từng profile; `with_music_channels` thêm music/channels/
+    (nhạc + intro/outro riêng của kênh — nặng, nên KHÔNG mặc định). raw/ KHÔNG bao giờ vào gói."""
     roots = list(PERSONAL_ROOTS) + ["music/library"]
+    if with_music_channels:
+        roots.append("music/channels")
     pd = os.path.join(st, _env.PROFILES_DIRNAME)
     if os.path.isdir(pd):
         for n in sorted(os.listdir(pd)):
@@ -814,9 +817,9 @@ def personal_roots(st, with_lab=False):
     return roots
 
 
-def personal_files(st, with_lab=False):
+def personal_files(st, with_lab=False, with_music_channels=False):
     files = []
-    for r in personal_roots(st, with_lab):
+    for r in personal_roots(st, with_lab, with_music_channels):
         files += [(f, rel) for f, rel in _walk(st, r) if not _skip_file(rel)]
     dflt = os.path.join(st, _env.PROFILES_DIRNAME, "_default.txt")
     if os.path.isfile(dflt):
@@ -827,6 +830,22 @@ def personal_files(st, with_lab=False):
     return files
 
 
+# Khoá của `station.json` chỉ đúng trên MÁY NGUỒN (đường tuyệt đối tới venv của máy đó) — không đi theo gói.
+MACHINE_KEYS = ("venv",)
+
+
+def _portable_station_json(raw):
+    """station.json dạng mang được sang máy khác: bỏ `MACHINE_KEYS` (import để trống / giữ của máy đích)."""
+    try:
+        data = json.loads(raw.decode("utf-8-sig") if isinstance(raw, bytes) else raw)
+    except ValueError:
+        return raw if isinstance(raw, bytes) else raw.encode("utf-8")
+    if isinstance(data, dict):
+        for k in MACHINE_KEYS:
+            data.pop(k, None)
+    return (json.dumps(data, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+
+
 def _zip(files, out, manifest):
     out = os.path.abspath(out)
     os.makedirs(os.path.dirname(out), exist_ok=True)
@@ -834,7 +853,11 @@ def _zip(files, out, manifest):
     try:
         with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
             for full, rel in files:
-                zf.write(full, rel)
+                if rel == _env.STATION_FILE:
+                    with open(full, "rb") as fh:
+                        zf.writestr(rel, _portable_station_json(fh.read()))
+                else:
+                    zf.write(full, rel)
             zf.writestr(MANIFEST, json.dumps(manifest, ensure_ascii=False, indent=2))
         os.replace(tmp, out)
     finally:
@@ -843,16 +866,17 @@ def _zip(files, out, manifest):
     return out
 
 
-def export_personal(st, out, with_lab=False):
+def export_personal(st, out, with_lab=False, with_music_channels=False):
     st = _env._expand(st)
     if not os.path.isdir(st):
         raise StationMissing(f"không có trạm giọng: {st} (chạy `voice-studio init`). {_env.OLD_DATA_HINT}")
-    files = personal_files(st, with_lab)
+    files = personal_files(st, with_lab, with_music_channels)
     bad = [rel for _, rel in files if _is_secret_name(rel)]
     if bad:
         raise ContractError("từ chối đóng gói — có file trông như secret: " + ", ".join(bad) +
                             ". Dời chúng về kho secret rồi chạy lại.")
-    manifest = {"kind": "personal", "contract": API_VERSION, "with_lab": bool(with_lab), "voice_studio": __version__,
+    manifest = {"kind": "personal", "contract": API_VERSION, "with_lab": bool(with_lab),
+                "with_music_channels": bool(with_music_channels), "voice_studio": __version__,
                 "created": datetime.datetime.now().isoformat(timespec="seconds"),
                 "files": [rel for _, rel in files]}
     path = _zip(files, out, manifest)
@@ -916,6 +940,20 @@ def import_personal(zip_path, st, force=False):
         for n in members:
             target = targets[n]
             os.makedirs(os.path.dirname(target), exist_ok=True)
+            if n == _env.STATION_FILE:
+                # Không mang `venv` của máy nguồn; máy đích đã có `venv` thì giữ nguyên của nó, chưa có thì để trống.
+                data = json.loads(_portable_station_json(zf.read(n)).decode("utf-8"))
+                if os.path.isfile(target):
+                    try:
+                        cur = json.load(open(target, encoding="utf-8-sig"))
+                    except (OSError, ValueError):
+                        cur = {}
+                    for k in MACHINE_KEYS:
+                        if isinstance(cur, dict) and cur.get(k):
+                            data[k] = cur[k]
+                with open(target, "w", encoding="utf-8", newline="\n") as dst:
+                    dst.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+                continue
             with zf.open(n) as src, open(target, "wb") as dst:
                 shutil.copyfileobj(src, dst)
     return {"station": st, "written": members, "overwritten": clash}
@@ -925,12 +963,16 @@ def export_main(argv=None):
     ap = argparse.ArgumentParser(
         prog="voice-studio export",
         description="Đóng gói giọng cá nhân để chuyển máy: profiles/*/voice/ (+ _default.txt), music/library/, "
-                    "station.json (trạm kiểu cũ: omnivoice/voices, assets/bgm). Không venv, cache, raw/, lab/, "
+                    "station.json không có khoá venv (trạm kiểu cũ: omnivoice/voices, assets/bgm). "
+                    "Không venv, cache, raw/, lab/, music/channels/ (thêm bằng cờ), "
                     "*.prompt.pt; từ chối file giống secret.")
     ap.add_argument("--personal", action="store_true", help="gói dữ liệu cá nhân (bắt buộc)")
     ap.add_argument("--out", required=True, help="file zip đích")
     ap.add_argument("--with-lab", action="store_true",
                     help="kèm profiles/*/lab/ (chỗ đào clip + ứng viên; nặng, dựng lại được). raw/ không bao giờ vào gói")
+    ap.add_argument("--with-music-channels", action="store_true",
+                    help="kèm music/channels/ (nhạc nền + intro/outro riêng của kênh; có thể hàng chục–trăm MB, nên "
+                         "không mặc định). Không kèm thì phải chép tay thư mục này sang máy mới")
     ap.add_argument("--station", help="trạm nguồn (mặc định: trạm đang phân giải)")
     ap.add_argument("--json", action="store_true")
     args, code = contract.parse(ap, argv)
@@ -941,7 +983,8 @@ def export_main(argv=None):
         if not a.personal:
             raise ContractError("bản này chỉ hỗ trợ `export --personal`; sao lưu cả trạm: "
                                 "`voice-studio backup`")
-        res = export_personal(a.station or _env.station_dir(), a.out, with_lab=a.with_lab)
+        res = export_personal(a.station or _env.station_dir(), a.out, with_lab=a.with_lab,
+                              with_music_channels=a.with_music_channels)
         contract.log(f"[export] {len(res['files'])} file → {res['out']}")
         return res
     return contract.run(fn, args, args.json)

@@ -173,7 +173,8 @@ def _load_map(path):
     for old, new in (data.get("rename") or {}).items():
         if not _env.is_profile_folder(str(new)) or any(c in str(new) for c in "/\\:"):
             raise ContractError(f"--map rename: tên mới không hợp lệ {new!r}")
-        rename[str(old)] = str(new)
+        # NFC cả hai vế: trên macOS tên file hay ở dạng NFD, khoá NFC trong map sẽ không khớp nếu so thô.
+        rename[_env.nfc(str(old))] = _env.nfc(str(new))
     return moves, rename
 
 
@@ -326,7 +327,7 @@ def build_plan(st, map_path=None, today=None):
     names = set()                                       # profile sẽ có trong profiles/
 
     def prof(name):
-        return rename.get(name, name)
+        return rename.get(_env.nfc(name), name)          # so tên theo NFC (macOS: NFD)
 
     # A. kho giọng phẳng
     lv = os.path.join(_station_engine(st), "voices")
@@ -366,8 +367,8 @@ def build_plan(st, map_path=None, today=None):
         if os.path.isfile(d_file):
             p.move(_rel(st, d_file), "profiles/_default.txt", "profile mặc định")
             cur = _read_bytes(d_file).decode("utf-8", errors="replace").strip()
-            if cur in rename:
-                p.notes.append(f"profile mặc định '{cur}' bị đổi tên thành '{rename[cur]}': sửa nội dung "
+            if _env.nfc(cur) in rename:
+                p.notes.append(f"profile mặc định '{cur}' bị đổi tên thành '{rename[_env.nfc(cur)]}': sửa nội dung "
                                "profiles/_default.txt (hoặc station.json: default_profile) sau khi dời")
         arch = os.path.join(lv, "_archive")
         a_dst = _archive_name(st, p, today, "voices")
@@ -438,9 +439,12 @@ def build_plan(st, map_path=None, today=None):
     new_info["music_dir"] = "music"
     if moved_bgm or (os.path.isdir(os.path.join(st, "music", "library")) and not os.path.isdir(bgm)):
         new_info["bgm_dir"] = "music/library"
-    new_info.setdefault("engine_dir", "omnivoice")
-    if cur.get("default_profile") in rename:
-        new_info["default_profile"] = rename[cur["default_profile"]]
+    # Ghi `engine_dir` mặc định CHỈ khi thư mục engine còn trên đĩa. Trạm đã dời xong (omnivoice/ đã giải thể)
+    # chạy lại phải KHÔNG đổi gì: không ghi trỏ vào thư mục chết, không sinh sổ rỗng (review Opus 6).
+    if "engine_dir" not in new_info and os.path.isdir(os.path.join(st, "omnivoice")):
+        new_info["engine_dir"] = "omnivoice"
+    if _env.nfc(str(cur.get("default_profile") or "")) in rename:
+        new_info["default_profile"] = rename[_env.nfc(str(cur["default_profile"]))]
     new_info.setdefault("created_by", f"voice-studio {__version__}")
     after = (json.dumps(new_info, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     sj_changed = before is None or json.loads(before.decode("utf-8") or "{}") != new_info
@@ -553,6 +557,9 @@ def apply_plan(plan, ledger_stamp=None):
     st = plan["station"]
     if plan["conflicts"]:
         raise ContractError("không dời được, xung đột: " + "; ".join(plan["conflicts"]) + ". Chưa đụng gì.")
+    g0 = plan["gitignore"]
+    if not plan["steps"] and not plan["station_json"]["changed"] and not (g0["git"] and g0["add"]):
+        return {"ledger": None, "steps": 0}         # đã dời xong từ trước: không làm gì, không đẻ sổ rỗng
     stamp = ledger_stamp or _now().strftime("%Y%m%d-%H%M%S")
     lp = _ledger_path(st, stamp)
     if os.path.exists(lp):
@@ -728,7 +735,10 @@ def main(argv=None):
             return {"action": "dry-run", "station": st, **rep}
         _print_plan(plan, dry=False)
         res = apply_plan(plan)
-        contract.log(f"[migrate-layout] xong: {res['steps']} bước, sổ {res['ledger']}. Gỡ biến OMNIVOICE_DIR, "
-                     "VOICE_STUDIO_WORK, VOICE_BGM_DIR nếu máy còn đặt; kiểm: voice-studio doctor.")
+        if res["ledger"] is None:
+            contract.log("[migrate-layout] trạm đã ở cây mới — không có gì để dời, không ghi sổ.")
+        else:
+            contract.log(f"[migrate-layout] xong: {res['steps']} bước, sổ {res['ledger']}. Gỡ biến OMNIVOICE_DIR, "
+                         "VOICE_STUDIO_WORK, VOICE_BGM_DIR nếu máy còn đặt; kiểm: voice-studio doctor.")
         return {"action": "apply", "station": st, **res, **rep}
     return contract.run(fn, args, args.json)

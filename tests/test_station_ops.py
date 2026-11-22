@@ -73,6 +73,35 @@ def test_export_personal_packs_exactly_the_personal_set(live, tmp_path, capsys):
     assert manifest["kind"] == "personal" and set(manifest["files"]) == PERSONAL
 
 
+def test_export_personal_music_channels_opt_in_and_no_machine_venv(live, tmp_path, capsys):
+    """Fable 7: gói mang `music/channels` khi có `--with-music-channels`; KHÔNG mang `venv` tuyệt đối của máy nguồn."""
+    (live / "music" / "channels" / "kenh-a").mkdir(parents=True)
+    (live / "music" / "channels" / "kenh-a" / "intro.mp3").write_bytes(b"ID3")
+    (live / "station.json").write_text(json.dumps(
+        {"contract": "1.2.0", "venv": "C:\\May\\Nguon\\venv", "default_profile": "demo"}), encoding="utf-8")
+    z0, z1 = tmp_path / "a.zip", tmp_path / "b.zip"
+    assert cli.main(["export", "--personal", "--station", str(live), "--out", str(z0), "--json"]) == 0
+    assert cli.main(["export", "--personal", "--with-music-channels", "--station", str(live),
+                     "--out", str(z1), "--json"]) == 0
+    capsys.readouterr()
+    assert "music/channels/kenh-a/intro.mp3" not in zipfile.ZipFile(z0).namelist()
+    assert "music/channels/kenh-a/intro.mp3" in zipfile.ZipFile(z1).namelist()
+    assert json.loads(zipfile.ZipFile(z1).read(station.MANIFEST))["with_music_channels"] is True
+    for z in (z0, z1):
+        sj = json.loads(zipfile.ZipFile(z).read("station.json"))
+        assert "venv" not in sj and sj["default_profile"] == "demo"
+    # nguồn không bị sửa
+    assert json.loads((live / "station.json").read_text(encoding="utf-8"))["venv"].startswith("C:")
+    # import: trạm trống -> không có venv; trạm đích đã có venv -> giữ của nó (kể cả gói cũ có venv lạ)
+    new = tmp_path / "new"
+    station.import_personal(str(z1), str(new))
+    assert "venv" not in json.loads((new / "station.json").read_text(encoding="utf-8"))
+    (new / "station.json").write_text(json.dumps({"venv": "/may/dich/venv"}), encoding="utf-8")
+    station.import_personal(str(z1), str(new), force=True)
+    sj = json.loads((new / "station.json").read_text(encoding="utf-8"))
+    assert sj["venv"] == "/may/dich/venv" and sj["default_profile"] == "demo"
+
+
 @pytest.mark.parametrize("bad", ["omnivoice/voices/x_token.json", "assets/bgm/.env",
                                  "omnivoice/voices/client_secret.json"])
 def test_export_refuses_secret_like_files(bad, live, tmp_path, capsys):

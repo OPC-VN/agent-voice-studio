@@ -153,6 +153,42 @@ def test_second_apply_finds_nothing_left_to_move(old, capsys):
     assert code == 0 and res["moves"] == [] and res["station_json"]["changed"] is False
 
 
+def test_rerun_on_already_migrated_station_does_nothing(old, capsys):
+    """Review Opus 6: trạm đã dời + omnivoice/ giải thể (station.json không có engine_dir) -> chạy lại 0 bước,
+    --apply không ghi station.json, không đẻ thêm sổ."""
+    run(["--apply"], capsys)
+    # mô phỏng trạm thật sau giải thể: omnivoice/ không còn, station.json không khai engine_dir
+    shutil.rmtree(old / "omnivoice")
+    info = json.loads((old / "station.json").read_text(encoding="utf-8"))
+    info.pop("engine_dir", None)
+    (old / "station.json").write_text(json.dumps(info), encoding="utf-8")
+    ledgers = sorted(os.listdir(old / layout.LEDGER_DIR))
+    before = (old / "station.json").read_bytes()
+    code, res, _ = run(["--dry-run"], capsys)
+    assert code == 0 and res["moves"] == [] and res["station_json"]["changed"] is False
+    code, res, _ = run(["--apply"], capsys)
+    assert code == 0, res
+    assert (old / "station.json").read_bytes() == before
+    assert sorted(os.listdir(old / layout.LEDGER_DIR)) == ledgers
+
+
+def test_map_rename_matches_names_in_nfc_even_if_disk_is_nfd(old, tmp_path, capsys):
+    """Review Opus 5: macOS giữ tên file dạng NFD; khoá NFC trong --map vẫn phải khớp."""
+    import unicodedata
+    nfd = unicodedata.normalize("NFD", "Giọng tiên hiệp")
+    nfc = unicodedata.normalize("NFC", "Giọng tiên hiệp")
+    assert nfd != nfc
+    v = old / "omnivoice" / "voices"
+    put(old, f"omnivoice/voices/{nfd}.wav", "wav-tien-hiep")
+    put(old, f"omnivoice/voices/{nfd}.txt", "lời")
+    mp = tmp_path / "m.json"
+    mp.write_text(json.dumps({"rename": {nfc: "giong-tien-hiep"}}), encoding="utf-8")
+    code, res, _ = run(["--apply", "--map", str(mp)], capsys)
+    assert code == 0, res
+    assert (old / "profiles/giong-tien-hiep/voice/giong-tien-hiep.wav").is_file()
+    assert res["renamed"] == {nfc: "giong-tien-hiep"}
+
+
 # ── undo ─────────────────────────────────────────────────────────────────────────────
 
 def test_undo_restores_tree_hash_for_hash(old, capsys):

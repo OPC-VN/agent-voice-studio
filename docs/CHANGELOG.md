@@ -19,6 +19,11 @@ plugin luôn cùng một số — `tests/test_version_sync.py` đỏ nếu lệc
 - Lệnh mới `voice-studio station migrate-layout [--dry-run|--apply|--undo] [--map file.json]`: dời trạm cũ sang cây
   mới, chỉ dời không xoá, có sổ, `--undo` đảo chính xác; tự thêm dòng chặn raw/lab/products/out/archive vào
   `.gitignore` của trạm git trước khi dời. Thứ ngoài hợp đồng được liệt kê là "cần dời tay" kèm gợi ý đích.
+- Vòng sửa sau review (22/11): `lab build --mode add` khi mọi marker đã có thoát 0 với "không có marker mới" (trước đây vỡ
+  `FileNotFoundError …\lab\_stage`); `migrate-layout` so tên `--map rename` theo NFC (macOS NFD), chạy lại trên trạm đã dời
+  là không làm gì (không ghi lại `engine_dir`, không sinh sổ rỗng); `export --personal` thêm `--with-music-channels` (kèm
+  `music/channels/`, mặc định không) và KHÔNG mang khoá `venv` tuyệt đối của máy nguồn — `import` để trống hoặc giữ `venv`
+  máy đích.
 - `candidates.json` của `lab mine` ghi đường tương đối; bản cũ ghi đường tuyệt đối vẫn đọc được (lùi về `clips/<tên file>`).
   `lab organize` ghi sổ tay/ref/demo vào `profiles/<tên>/`.
 - `init` dựng `profiles/`, `music/library`, `out/`, `archive/` (không còn `omnivoice/`); `export --personal` gói

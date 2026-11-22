@@ -228,6 +228,27 @@ def test_load_candidates_rewrites_paths(st):
     assert got["clusters"]["m"]["candidates"][0]["wav"] == str(lab / "clips" / "m_1.wav")
 
 
+def test_lab_build_add_with_every_marker_present_is_a_clean_noop(st, monkeypatch, capsys):
+    """Fable PS2: `lab build --mode add` khi mọi marker đã có từng vỡ FileNotFoundError ...\\lab\\_stage."""
+    from voice_studio import engine
+    from voice_studio.lab import build
+    new_voice(st, "alpha")
+    vd = st / "profiles" / "alpha" / "voice"
+    manifest = {"name": "alpha", "neutral": "m", "variants": {"m": {"wav": "alpha.variants/m.wav"}}}
+    (vd / "alpha.profile.json").write_text(json.dumps(manifest), encoding="utf-8")
+    lab = st / "profiles" / "alpha" / "lab"
+    lab.mkdir(parents=True)
+    (lab / "candidates.json").write_text(json.dumps(
+        {"neutral": "m", "clusters": {"m": {"size": 3, "centroid_pte": 0.0, "candidates": []}}}), encoding="utf-8")
+    monkeypatch.setattr(engine, "load", lambda *a, **k: object())
+    before = (vd / "alpha.profile.json").read_bytes()
+    assert build.main(["--name", "alpha", "--mode", "add", "--no-demo"]) is None       # không SystemExit, không traceback
+    out = capsys.readouterr().out
+    assert "không có marker mới" in out
+    assert not (lab / "_stage").exists()
+    assert (vd / "alpha.profile.json").read_bytes() == before                           # manifest không bị ghi lại
+
+
 def test_bgm_dir_defaults(st):
     assert _env.bgm_dir() == str(st / "music" / "library")                      # trạm trống: mặc định mới
     (st / "assets" / "bgm").mkdir(parents=True)

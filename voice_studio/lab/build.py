@@ -94,6 +94,8 @@ def stage_variant(stage, name, marker, src_wav, text):
 
 def commit(stage, name, neutral_marker):
     """Chuyển toàn bộ staging vào thư mục giọng của profile — chỉ gọi khi mọi thứ đã chắc chắn."""
+    if not os.path.isdir(stage):      # không dàn gì -> không có gì để chuyển
+        return
     base = profiles.voice_dir(name)
     vdir = os.path.join(base, name + ".variants")
     os.makedirs(vdir, exist_ok=True)
@@ -190,6 +192,13 @@ def main(argv=None):
                                          or not manifest.get("neutral")):
             commit_neutral = marker
             manifest["neutral"] = marker
+
+    if args.mode == "add" and not added:
+        # Mọi marker đã có (hoặc không cụm nào đạt): KHÔNG có gì để dàn/commit — không tạo staging, không
+        # ghi lại manifest, thoát 0 rõ ràng. Trước đây commit() gặp thư mục `_stage` chưa tồn tại -> FileNotFoundError.
+        print(f"[build] không có marker mới để thêm | bỏ qua: {skipped or '(không)'}  (--force để đè marker đã có)")
+        print(f"[build] manifest giữ nguyên: {mpath} | trung tính: {manifest.get('neutral')} | tổng marker: {len(manifest['variants'])}")
+        return
 
     if not manifest.get("neutral"):
         sys.exit("[build] không có clip trung tính nào đạt — dừng, "

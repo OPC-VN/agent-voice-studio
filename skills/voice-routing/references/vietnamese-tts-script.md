@@ -126,7 +126,7 @@ manifest trước; profile thiếu marker nào thì bỏ dòng đó trong bảng
 | Câu hỏi tu từ, hỏi–đáp | `hoi-dap` | `giai-thich` cho lời đáp dài |
 | Chốt ý, cảnh báo sai lầm | `nhan-manh` | — |
 | Động viên, kêu gọi hành động | `gan-gui` | — |
-| Suy ngẫm, kết bài | `tram-lang` | `gan-gui` cho câu chào cuối |
+| Suy ngẫm, kết bài | `tram-lang` | `trung-tinh` cho câu chào cuối (hoặc để câu chào nằm luôn trong đoạn `tram-lang`; không đặt `gan-gui` liền sau `tram-lang` — hai marker này thường đo ra khó phân biệt) |
 
 Quy ước biên tập (chưa đo bằng số, kiểm bằng tai khi giao):
 
@@ -146,8 +146,9 @@ Quy ước biên tập (chưa đo bằng số, kiểm bằng tai khi giao):
 
 Khung bài giảng 5 phút mẫu: `hao-hung` (2 câu) → `gan-gui` (1) → `trung-tinh` dàn bài (2) →
 `giai-thich` (4) → `ke-chuyen` (3) → `hoi-dap` (2) → `giai-thich` (3) → `nhan-manh` (2) →
-`trung-tinh` chuyển phần (1) → `giai-thich` (4) → `nhan-manh` tóm tắt (2) → `tram-lang` (2) →
-`gan-gui` (1).
+`trung-tinh` chuyển phần (1) → `giai-thich` (4) → `nhan-manh` tóm tắt (2) → `tram-lang` (3, kể cả
+câu chào cuối). Kết bằng `nhan-manh` tóm tắt rồi `tram-lang`; nếu cần tách riêng câu chào cuối thì
+dùng `trung-tinh`, không dùng `gan-gui`.
 
 **Tag phi ngôn ngữ** — các âm nội tuyến của chính engine như tiếng cười, thở dài và thán từ
 ngạc nhiên — được chuyển thẳng qua, và yếu. Chúng là tiếng động rời rạc; không diễn đạt được
