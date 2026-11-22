@@ -86,8 +86,8 @@ def same_words(old, new):
 
 def process(name, apply=False, gaps_fn=whisper_gaps):
     """Đề xuất (và ghi nếu `apply`) lời mới cho một profile. Trả dict báo cáo."""
-    d = profiles.voices_dir()
-    wav, txt = os.path.join(d, name + ".wav"), os.path.join(d, name + ".txt")
+    wav, txt = profiles._paths(name)
+    d = os.path.dirname(wav)
     if not (os.path.isfile(wav) and os.path.isfile(txt)):
         return {"profile": name, "status": "missing"}
     with open(txt, encoding="utf-8") as f:
@@ -105,7 +105,7 @@ def process(name, apply=False, gaps_fn=whisper_gaps):
     if apply:
         with open(txt, "w", encoding="utf-8", newline="\n") as f:
             f.write(new + "\n")
-        pt = os.path.join(d, name + ".prompt.pt")
+        pt = wav[:-4] + ".prompt.pt"
         if os.path.isfile(pt):
             os.remove(pt)           # BẮT BUỘC: cache prompt phải dựng lại từ lời mới
         profiles.clear_cache()

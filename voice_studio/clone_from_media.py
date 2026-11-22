@@ -119,7 +119,8 @@ def clone(args):
 
     profiles.save_profile_from_wav(ref_wav, ref_text, args.name, set_as_default=False)
     log(f"[clone] đã lưu profile '{args.name}' (mặc định KHÔNG đổi). Lời: {ref_text[:90]!r}")
-    result = {"profile": args.name, "ref_text": ref_text, "voices_dir": profiles.voices_dir()}
+    result = {"profile": args.name, "ref_text": ref_text, "voices_dir": profiles.voices_dir(),
+              "profiles_dir": profiles.profiles_dir(), "voice_dir": profiles.voice_dir(args.name)}
     if not args.no_verify:
         import numpy as np
         import soundfile as sf

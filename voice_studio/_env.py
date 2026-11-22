@@ -9,12 +9,16 @@ Biến hợp đồng (tên mới trước, tên cũ đọc được để tươn
     VOICE_STATION      gốc trạm giọng                 (mặc định <repo>/workspaces/)
     OMNIVOICE_DIR      tên cũ: THƯ MỤC ENGINE (= $VOICE_STATION/omnivoice); đọc được,
                        không cảnh báo ở đây — `voice-studio doctor` mới là chỗ nhắc đổi tên
-    VOICES_DIR         kho profile giọng              (mặc định <engine>/voices)
-    VOICE_BGM_DIR      thư viện nhạc nền              (mặc định $VOICE_STATION/assets/bgm)
+    VOICES_DIR         kho PHẲNG kiểu cũ              (mặc định <engine>/voices; chỉ còn để đọc/ghi trạm cũ)
+    VOICE_BGM_DIR      thư viện nhạc nền              (mặc định $VOICE_STATION/music/library)
     VOICE_BGM          file nhạc nền cho lần ghép hiện tại (rỗng = không trộn)
     VOICE_BGM_VOL      âm lượng nhạc nền              (mặc định 0.10)
     FFMPEG_DIR         thư mục chứa ffmpeg/ffprobe    (rỗng = tìm trên PATH)
     VOICE_STUDIO_WORK  scratch / output tạm            (mặc định $VOICE_STATION/out)
+
+Cây trạm kiểu mới (station.json 1.2): `profiles/<tên>/{voice,raw,lab,report,products}` · `music/{library,
+channels,generated}` · `out/` · `archive/`. Clip tham chiếu của một giọng nằm ở `profiles/<tên>/voice/`; trạm
+cũ (kho phẳng `<engine>/voices`) vẫn đọc/ghi được cho tới khi chạy `voice-studio station migrate-layout`.
 
 `NEWS_BGM`, `NEWS_BGM_VOL`, `NEWS_BGM_DIR` là tên cũ của ba biến BGM: vẫn đọc được trong
 MỘT phiên bản, kèm DeprecationWarning, rồi sẽ bị bỏ.
@@ -28,7 +32,7 @@ Hai chế độ cài (F17) dùng chung MỘT thứ tự phân giải trạm — 
 `<repo>` là bản clone đã `pip install -e` (có `pyproject.toml` cạnh package); đặt
 `VOICE_STUDIO_REPO` để trỏ tường minh. Cài dạng wheel thì không có repo ⇒ không có tầng repo,
 và thiếu cả biến lẫn cấu hình thì `station_dir()` báo mã 3 (không tự tạo thư mục nào ở thư mục cá nhân).
-`station.json` ở gốc trạm có thể khai `engine_dir`, `bgm_dir` (tương đối theo gốc trạm).
+`station.json` ở gốc trạm có thể khai `engine_dir`, `profiles_dir`, `music_dir`, `bgm_dir` (tương đối theo gốc trạm).
 
 Máy có OpcOS: venv engine và mô hình dọn giọng được cài ở `runtime/` (hợp đồng `runtime-resource-v1`):
 
@@ -51,6 +55,7 @@ import os
 import re
 import shutil
 import sys
+import unicodedata
 import warnings
 from pathlib import Path
 
@@ -59,6 +64,9 @@ STATION_NAME = "voice"                   # tên trạm = thư mục con `voice` 
 WORKSPACE = "workspaces"                 # trạm NHÚNG trong repo: chính `<repo>/workspaces` (nhãn nguồn phân giải)
 LEGACY_WORKSPACE = "workspace"           # tên số ít cũ: chỉ còn được NHẬN, không bao giờ được tạo
 STATION_FILE = "station.json"
+PROFILES_DIRNAME = "profiles"            # kiểu mới: profiles/<tên>/{voice,raw,lab,report,products}
+MUSIC_DIRNAME = "music"                  # music/{library,channels,generated}
+ARCHIVE_DIRNAME = "archive"              # archive/<ngày>-<slug>/ — KHÔNG nằm trong profiles/ (sẽ thành một "giọng")
 ENV_FILE = ".env"
 ENV_EXAMPLE = ".env.example"
 # Hợp đồng F17 — tên chế độ dùng chung với `agent-marketing-team`, `agent-video-studio`.
@@ -223,8 +231,9 @@ def read_env_file(repo=None):
 
 
 def has_marker(path):
-    """Thư mục có phải một trạm giọng không: có station.json hoặc omnivoice/voices/."""
+    """Thư mục có phải một trạm giọng không: có station.json, profiles/ (kiểu mới) hoặc omnivoice/voices/ (kiểu cũ)."""
     return bool(path) and (os.path.isfile(os.path.join(path, STATION_FILE)) or
+                           os.path.isdir(os.path.join(path, PROFILES_DIRNAME)) or
                            os.path.isdir(os.path.join(path, "omnivoice", "voices")))
 
 
@@ -483,16 +492,85 @@ def engine_venv(st=None):
 
 
 def voices_dir():
-    """Kho profile giọng: VOICES_DIR → <engine>/voices."""
+    """Kho PHẲNG kiểu cũ: VOICES_DIR → <engine>/voices. Trạm kiểu mới đọc `profiles/<tên>/voice/` trước
+    (xem `profiles_dir()`); kho phẳng chỉ còn là chỗ lùi cho trạm chưa dời."""
     v = env("VOICES_DIR")
     return _expand(v) if v else os.path.join(engine_dir(), "voices")
 
 
+def profiles_dir():
+    """Gốc `profiles/` của trạm kiểu mới: `station.json: profiles_dir` → <trạm>/profiles. Không kiểm tồn tại."""
+    return _from_station("profiles_dir", PROFILES_DIRNAME)
+
+
+def music_dir():
+    """Gốc `music/` của trạm kiểu mới: `station.json: music_dir` → <trạm>/music."""
+    return _from_station("music_dir", MUSIC_DIRNAME)
+
+
+def has_new_layout():
+    """Trạm đang dùng đã có thư mục `profiles/` (kiểu mới) chưa? Chưa xác định được trạm ⇒ False."""
+    try:
+        return os.path.isdir(profiles_dir())
+    except Exception:       # noqa: BLE001 — StationMissing: không có trạm thì không có kiểu mới
+        return False
+
+
+def nfc(s):
+    return unicodedata.normalize("NFC", s) if s else s
+
+
+def is_profile_folder(name):
+    """Tên thư mục dưới `profiles/` có được tính là MỘT profile không? Bỏ `_x`, `.x` và `archive`."""
+    return bool(name) and not name.startswith(("_", ".")) and nfc(name).casefold() != ARCHIVE_DIRNAME
+
+
+def profile_folder(name, root=None):
+    """Tên thư mục THẬT trên đĩa của profile `name` dưới `profiles/` (so theo NFC — macOS lưu NFD), hoặc
+    None nếu chưa có thư mục đó. `root` mặc định `profiles_dir()`."""
+    root = root or profiles_dir()
+    if not name or not is_profile_folder(name):
+        return None
+    if os.path.isdir(os.path.join(root, name)):
+        return name
+    key = nfc(name)
+    try:
+        entries = sorted(os.listdir(root))
+    except OSError:
+        return None
+    for n in entries:
+        if is_profile_folder(n) and nfc(n) == key and os.path.isdir(os.path.join(root, n)):
+            return n
+    return None
+
+
+def profile_root(name):
+    """`profiles/<tên>/` của `name` (thư mục có sẵn khớp theo NFC, không có thì chính `name`). Tên không
+    được là đường dẫn, `..`, rỗng, hay tên dành riêng (`_x`, `.x`, `archive`) — ContractError."""
+    bad_chars = "/\\:"
+    if (not name or name in (".", "..") or any(c in name for c in bad_chars)
+            or not is_profile_folder(name)):
+        from .contract import ContractError
+        raise ContractError(f"tên profile không hợp lệ cho cây profiles/: {name!r} "
+                            "(không có / \\ :, không bắt đầu bằng _ hoặc ., không phải 'archive')")
+    root = profiles_dir()
+    return os.path.join(root, profile_folder(name, root) or name)
+
+
 def bgm_dir():
-    """Thư viện nhạc nền: VOICE_BGM_DIR (tên cũ NEWS_BGM_DIR) → station.json: bgm_dir →
-    <trạm>/assets/bgm."""
+    """Thư viện nhạc nền: VOICE_BGM_DIR (tên cũ NEWS_BGM_DIR) → station.json: bgm_dir → trạm mới
+    <trạm>/music/library; trạm cũ chưa có `music/` mà có `assets/bgm` thì dùng `assets/bgm`."""
     d = env("VOICE_BGM_DIR")
-    return _expand(d) if d else _from_station("bgm_dir", "assets/bgm")
+    if d:
+        return _expand(d)
+    st = station_dir()
+    if station_info(st).get("bgm_dir"):
+        return _from_station("bgm_dir", "")
+    new = os.path.join(st, MUSIC_DIRNAME, "library")
+    old = os.path.join(st, "assets", "bgm")
+    if not os.path.isdir(os.path.join(st, MUSIC_DIRNAME)) and os.path.isdir(old):
+        return old
+    return new
 
 
 def work_dir():
@@ -506,8 +584,25 @@ def work_dir():
 
 
 def lab_dir(*parts):
-    """Chỗ làm việc của bộ công cụ dựng giọng (đào clip, dựng profile): <work>/lab/…"""
-    return os.path.join(work_dir(), "lab", *parts)
+    """Chỗ làm việc của bộ công cụ dựng giọng (đào clip, dựng profile): `lab_dir(<tên profile>, …)`.
+
+    Trạm kiểu mới: `profiles/<tên>/lab/…`. Nếu `<work>/lab/<tên>` kiểu cũ còn mà `profiles/<tên>/lab` chưa có
+    thì dùng tiếp chỗ cũ (một dòng cảnh báo — dời bằng `voice-studio station migrate-layout`). Trạm cũ chưa có
+    `profiles/`: `<work>/lab/<tên>/…` như trước. Không có tên (gọi trần) ⇒ gốc `<work>/lab`.
+    """
+    if not parts:
+        return os.path.join(work_dir(), "lab")
+    name, rest = parts[0], parts[1:]
+    legacy = os.path.join(work_dir(), "lab", name)
+    if has_new_layout():
+        new = os.path.join(profile_root(name), "lab")
+        if os.path.isdir(new) or not os.path.isdir(legacy):
+            return os.path.join(new, *rest)
+        _note_once(f"lab-legacy:{name}",
+                   f"[voice-studio] đang dùng chỗ làm việc kiểu cũ {legacy}; dời vào profiles/<tên>/lab "
+                   "bằng `voice-studio station migrate-layout`.")
+        return os.path.join(legacy, *rest)
+    return os.path.join(legacy, *rest)
 
 
 def _tool(name):

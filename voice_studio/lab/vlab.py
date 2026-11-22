@@ -17,11 +17,6 @@ from .. import engine, profiles
 from .._torchguard import no_grad_guard
 
 
-def _voices():
-    """Kho giọng hiện hành (đọc mỗi lần — không đóng băng lúc import)."""
-    return profiles.voices_dir()
-
-
 def _log(msg):
     # stderr: stdout của CLI dành cho kết quả máy đọc (hợp đồng --json).
     print(msg, file=sys.stderr, flush=True)
@@ -60,8 +55,8 @@ _prompt_cache = {}
 
 
 def manifest_path(name):
-    # Tên thật trên đĩa (so theo NFC) — cùng luật với `profiles`, không đổi tên file.
-    return os.path.join(_voices(), profiles._disk_name(name) + ".profile.json")
+    # Chỗ + tên thật trên đĩa (kiểu mới trước, so theo NFC) — cùng luật với `profiles`, không đổi tên file.
+    return os.path.join(profiles.voice_dir(name), profiles._disk_name(name) + ".profile.json")
 
 
 def load_profile(name):
@@ -109,7 +104,7 @@ def _variant_paths(profile, marker):
     """Đường dẫn wav/txt của một biến thể (hoặc của chính profile nếu marker None)."""
     name = profile["name"]
     v = profile["variants"][marker]
-    wav = os.path.join(_voices(), v["wav"].replace("/", os.sep))
+    wav = os.path.join(profiles.voice_dir(name), v["wav"].replace("/", os.sep))
     txt = os.path.splitext(wav)[0] + ".txt"
     return name, wav, txt, float(v.get("speed", 1.0))
 

@@ -74,12 +74,11 @@ def resolve_profile(name, instruct=None):
     Kho giọng chưa tồn tại ⇒ StationMissing (3); profile không có / không có mặc định ⇒
     ContractError (2).
     """
-    d = profiles.voices_dir()
     if instruct and not name:
         return None
-    if not os.path.isdir(d):
+    if not profiles.store_exists():
         raise StationMissing(
-            f"chưa có kho giọng {d}. Dựng trạm bằng `voice-studio init` (hoặc đặt VOICE_STATION), "
+            f"chưa có kho giọng ({profiles._where()}). Dựng trạm bằng `voice-studio init` (hoặc đặt VOICE_STATION), "
             f"rồi tạo profile bằng `voice-studio make-profile`. {_env.OLD_DATA_HINT}")
     try:
         return profiles.ensure_default(name=name)

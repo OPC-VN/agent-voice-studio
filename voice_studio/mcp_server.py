@@ -35,7 +35,7 @@ TOOLS = ("synthesize_speech", "clone_voice", "narrate_video", "make_voice_profil
 def _check_profile(voice_profile):
     """Profile ĐƯỢC NÊU TÊN mà không có ⇒ báo lỗi, không lặng lẽ đổi sang giọng khác."""
     if voice_profile and profiles.nfc(voice_profile) not in profiles.list_profiles():
-        return f"ERROR: không có profile giọng '{voice_profile}' trong {profiles.voices_dir()}"
+        return f"ERROR: không có profile giọng '{voice_profile}' trong {profiles._where()}"
     return None
 
 
@@ -185,7 +185,8 @@ def make_voice_profile(name: str, ref_audio: str = "", ref_text: str = "",
 def list_voice_profiles() -> dict:
     """List saved voice profiles and which one is the current default."""
     return {"profiles": profiles.list_profiles(), "default": profiles.get_default(),
-            "dir": profiles.voices_dir()}
+            "dir": profiles.profiles_dir() if profiles.layout() == "new" else profiles.voices_dir(),
+            "profiles_dir": profiles.profiles_dir(), "layout": profiles.layout()}
 
 
 def set_default_voice(name: str) -> str:
@@ -224,7 +225,8 @@ def get_status() -> dict:
               "model_loaded": engine._model is not None, "device": engine.loaded_device(),
               "sample_rate": getattr(engine._model, "sampling_rate", None),
               "offline": os.environ.get("HF_HUB_OFFLINE") == "1",
-              "voices_dir": profiles.voices_dir(), "default_profile": profiles.get_default()}
+              "voices_dir": profiles.voices_dir(), "profiles_dir": profiles.profiles_dir(),
+              "default_profile": profiles.get_default()}
     try:
         status["device_available"] = engine.pick_device()
     except Exception as e:      # noqa: BLE001 — trạng thái phải trả được cả khi thiếu torch

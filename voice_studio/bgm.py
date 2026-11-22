@@ -1,6 +1,6 @@
 """bgm.py — thư viện nhạc nền của trạm giọng: đọc `bgm-library.json`, chọn style, dựng khung rỗng.
 
-Thư viện là MỘT thư mục (mặc định `$VOICE_STATION/assets/bgm`, đổi bằng `VOICE_BGM_DIR`)
+Thư viện là MỘT thư mục (mặc định `$VOICE_STATION/music/library`; trạm cũ chưa có `music/` thì `assets/bgm`; đổi bằng `VOICE_BGM_DIR`)
 chứa `bgm-library.json` và các file `<style>.mp3` nằm cạnh nó:
 
     {

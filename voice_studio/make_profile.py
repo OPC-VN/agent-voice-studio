@@ -111,7 +111,7 @@ def check_stutter_leak(model, name, ref_text):
 
 
 def _quarantine(name):
-    d = profiles.voices_dir()
+    d = profiles.voice_dir(name)
     for ext in (".wav", ".txt", ".prompt.pt"):
         f = os.path.join(d, name + ext)
         if os.path.isfile(f):
@@ -188,7 +188,8 @@ def make(args):
                             f"chọn mốc cắt khác")
     log(f"[make-profile] đã lưu '{name}'. Mặc định: {profiles.get_default()}")
     return {"profile": name, "method": method, "default": profiles.get_default(),
-            "voices_dir": profiles.voices_dir(), "ref_text": meta.get("ref_text")}
+            "voices_dir": profiles.voices_dir(), "profiles_dir": profiles.profiles_dir(),
+            "voice_dir": profiles.voice_dir(name), "ref_text": meta.get("ref_text")}
 
 
 def main(argv=None):

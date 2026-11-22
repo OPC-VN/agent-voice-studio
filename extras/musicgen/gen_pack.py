@@ -1,6 +1,6 @@
 """gen_pack.py — sinh CẢ BỘ nhạc nền theo `styles.json` rồi khai vào thư viện nhạc nền của trạm.
 
-Mỗi style sinh một bản `<name>.mp3` vào thư viện (mặc định `VOICE_BGM_DIR` / `<trạm>/assets/bgm`)
+Mỗi style sinh một bản `<name>.mp3` vào thư viện (mặc định `VOICE_BGM_DIR` / `<trạm>/music/library`)
 và thêm style đó vào `bgm-library.json` — KHÔNG đè mô tả, style mặc định hay âm lượng bạn đã
 chỉnh. File nhạc đã có thì bỏ qua (thêm `--force` để sinh lại).
 

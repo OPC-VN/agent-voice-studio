@@ -17,11 +17,6 @@ import sys
 from .. import _env, engine, profiles
 
 
-def _voices():
-    """Kho giọng hiện hành — đọc lại mỗi lần, không đóng băng lúc import."""
-    return profiles.voices_dir()
-
-
 import soundfile as sf
 from . import verify as V
 from . import vlab
@@ -37,7 +32,24 @@ def load_candidates(name):
     if not os.path.isfile(p):
         sys.exit(f"[build] chưa có {p} — chạy `voice-studio lab mine` trước.")
     with open(p, "r", encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    base = os.path.dirname(p)
+    for info in (data.get("clusters") or {}).values():
+        for c in info.get("candidates") or []:
+            c["wav"] = clip_path(base, c.get("wav"))
+    return data
+
+
+def clip_path(base, wav):
+    """Đường THẬT của một clip ứng viên. `candidates.json` mới ghi đường tương đối theo thư mục của nó; bản cũ
+    ghi đường tuyệt đối — dời thư mục `lab/` (migrate-layout) làm đường đó chết, nên khi không tồn tại thì lùi về
+    `clips/<tên file>` cạnh candidates.json."""
+    wav = wav or ""
+    p = wav if os.path.isabs(wav) else os.path.join(base, *wav.replace("\\", "/").split("/"))
+    if os.path.isfile(p):
+        return p
+    alt = os.path.join(base, "clips", wav.replace("\\", "/").rsplit("/", 1)[-1])
+    return alt if os.path.isfile(alt) else p
 
 
 def pick_clip(model, marker, cands, used):
@@ -81,8 +93,9 @@ def stage_variant(stage, name, marker, src_wav, text):
 
 
 def commit(stage, name, neutral_marker):
-    """Chuyển toàn bộ staging vào voices/ — chỉ gọi khi mọi thứ đã chắc chắn."""
-    vdir = os.path.join(_voices(), name + ".variants")
+    """Chuyển toàn bộ staging vào thư mục giọng của profile — chỉ gọi khi mọi thứ đã chắc chắn."""
+    base = profiles.voice_dir(name)
+    vdir = os.path.join(base, name + ".variants")
     os.makedirs(vdir, exist_ok=True)
     for fn in sorted(os.listdir(stage)):
         shutil.copyfile(os.path.join(stage, fn), os.path.join(vdir, fn))
@@ -91,13 +104,13 @@ def commit(stage, name, neutral_marker):
             if os.path.isfile(pt):
                 os.remove(pt)
     if neutral_marker:
-        # Clip trung tính lưu THẲNG ở voices/<name>.wav để mọi pipeline chỉ biết profile phẳng đọc được.
+        # Clip trung tính lưu THẲNG cạnh manifest (<name>.wav) để mọi pipeline chỉ biết profile phẳng đọc được.
         src = os.path.join(stage, neutral_marker + ".wav")
         if os.path.isfile(src):
-            shutil.copyfile(src, os.path.join(_voices(), name + ".wav"))
+            shutil.copyfile(src, os.path.join(base, name + ".wav"))
             shutil.copyfile(os.path.join(stage, neutral_marker + ".txt"),
-                            os.path.join(_voices(), name + ".txt"))
-            pt = os.path.join(_voices(), name + ".prompt.pt")
+                            os.path.join(base, name + ".txt"))
+            pt = os.path.join(base, name + ".prompt.pt")
             if os.path.isfile(pt):
                 os.remove(pt)
 
@@ -121,7 +134,7 @@ def main(argv=None):
     # RÀO AN TOÀN: voices/ đang chứa narrator, speaker-b, "speaker-c" — nhiều pipeline pin cứng
     # các tên này, và kho giọng thường KHÔNG nằm trong git nên đè nhầm là mất vĩnh viễn. Một profile
     # lối cũ = có <name>.wav nhưng KHÔNG có <name>.profile.json.
-    legacy_wav = os.path.join(_voices(), args.name + ".wav")
+    legacy_wav = profiles._paths(args.name)[0]
     if os.path.isfile(legacy_wav) and not os.path.isfile(mpath) and not args.overwrite_legacy:
         sys.exit(f"[build] DỪNG: '{args.name}' đã tồn tại như một profile lối cũ "
                  f"({legacy_wav}) và không có manifest.\n"
@@ -185,6 +198,7 @@ def main(argv=None):
     commit(stage, args.name, commit_neutral)
     shutil.rmtree(stage, ignore_errors=True)
     manifest["updated_at"] = _now()
+    os.makedirs(os.path.dirname(mpath), exist_ok=True)
     with open(mpath, "w", encoding="utf-8") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=2)
     print(f"[build] manifest -> {mpath}")

@@ -3,7 +3,7 @@ split.py — tách một profile đa biến thể thành NHIỀU profile độc 
 
   voice-studio lab split --from narrator --prefix solo
 
-Mỗi marker thành một profile lối cũ (`voices/<prefix>-<marker>.wav` + `.txt`), dùng được
+Mỗi marker thành một profile lối cũ (`<prefix>-<marker>.wav` + `.txt`, ở kho giọng của trạm), dùng được
 ngay với mọi pipeline hiện có mà không cần biết gì về manifest hay marker.
 
 Vì sao tách: một profile nhiều biến thể hợp khi muốn ĐỔI sắc thái GIỮA bài; nhiều profile
@@ -17,11 +17,6 @@ import shutil
 import sys
 
 from .. import _env, engine, profiles
-
-
-def _voices():
-    """Kho giọng hiện hành — đọc lại mỗi lần, không đóng băng lúc import."""
-    return profiles.voices_dir()
 
 
 from . import vlab
@@ -49,27 +44,29 @@ def main(argv=None):
         if m not in prof["variants"]:
             sys.exit(f"[split] '{args.src}' không có marker '{m}'. "
                      f"Có: {', '.join(prof['variants'])}")
-        dst = os.path.join(_voices(), f"{args.prefix}-{m}.wav")
-        if os.path.isfile(dst) and not args.force:
+        dst = os.path.join(profiles.voice_dir(f"{args.prefix}-{m}"), f"{args.prefix}-{m}.wav")
+        if profiles._exists(f"{args.prefix}-{m}") and not args.force:
             sys.exit(f"[split] DỪNG: '{args.prefix}-{m}' đã tồn tại ({dst}).\n"
                      f"        Đổi --prefix, hoặc thêm --force nếu muốn đè.")
 
     for m in markers:
         v = prof["variants"][m]
-        src_wav = os.path.join(_voices(), v["wav"].replace("/", os.sep))
+        src_wav = os.path.join(profiles.voice_dir(args.src), v["wav"].replace("/", os.sep))
         src_txt = os.path.splitext(src_wav)[0] + ".txt"
         if not os.path.isfile(src_wav):
             print(f"[split] bỏ '{m}': thiếu {src_wav}")
             skipped.append(m)
             continue
         name = f"{args.prefix}-{m}"
-        shutil.copyfile(src_wav, os.path.join(_voices(), name + ".wav"))
+        out_dir = profiles.voice_dir(name)
+        os.makedirs(out_dir, exist_ok=True)
+        shutil.copyfile(src_wav, os.path.join(out_dir, name + ".wav"))
         if os.path.isfile(src_txt):
-            shutil.copyfile(src_txt, os.path.join(_voices(), name + ".txt"))
+            shutil.copyfile(src_txt, os.path.join(out_dir, name + ".txt"))
         else:
-            with open(os.path.join(_voices(), name + ".txt"), "w", encoding="utf-8") as f:
+            with open(os.path.join(out_dir, name + ".txt"), "w", encoding="utf-8") as f:
                 f.write(v.get("text", "").strip())
-        pt = os.path.join(_voices(), name + ".prompt.pt")   # cache cũ đã lỗi thời
+        pt = os.path.join(out_dir, name + ".prompt.pt")   # cache cũ đã lỗi thời
         if os.path.isfile(pt):
             os.remove(pt)
         made.append(name)

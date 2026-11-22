@@ -1,7 +1,7 @@
 """
 mine.py — đào clip mẫu theo SẮC THÁI từ các file ghi âm dài.
 
-Đầu vào: nhiều file audio của CÙNG một người. Đầu ra: <VOICE_STUDIO_WORK>/lab/<name>/candidates.json
+Đầu vào: nhiều file audio của CÙNG một người. Đầu ra: <trạm>/profiles/<name>/lab/candidates.json
 + các clip .wav ứng viên, đã gán tên marker.
 
 Cách làm (xem DESIGN.md mục 6-7):
@@ -23,11 +23,6 @@ import tempfile
 import unicodedata
 
 from .. import _env, engine, profiles
-
-
-def _voices():
-    """Kho giọng hiện hành — đọc lại mỗi lần, không đóng băng lúc import."""
-    return profiles.voices_dir()
 
 
 import numpy as np
@@ -55,6 +50,12 @@ SEED = 42
 # nguyên mẫu — tên sinh thẳng từ trục nào thực sự lệch.
 TRAIT_MIN = 0.5        # |z| tối thiểu để một trục được coi là đặc điểm
 AXIS_WORDS = (("cao", "tram"), ("nhanh", "cham"), ("manh", "nhe"))  # (dương, âm) cho P,T,E
+
+
+def _rel(path, base):
+    """Đường TƯƠNG ĐỐI (dấu `/`) của `path` so với `base` — candidates.json không ghi đường tuyệt đối, để dời thư mục
+    `lab/` đi đâu cũng đọc lại được."""
+    return os.path.relpath(path, base).replace(os.sep, "/")
 
 
 def _ffmpeg():
@@ -351,7 +352,7 @@ def main(argv=None):
                             "-t", f"{tt:.3f}", "-i", r["file"], "-vn", "-ac", "1",
                             "-ar", str(SR), "-c:a", "pcm_s16le", wav],
                            check=True, capture_output=True)
-            cands.append({"rank": rank, "wav": wav,
+            cands.append({"rank": rank, "wav": _rel(wav, work),
                           "source": {"file": os.path.basename(r["file"]),
                                      "start": r["start"], "dur": r["dur"]},
                           "features": {kk: round(r[kk], 3) for kk in
@@ -396,7 +397,7 @@ def main(argv=None):
                                 "-t", f"{tt:.3f}", "-i", r["file"], "-vn", "-ac", "1",
                                 "-ar", str(SR), "-c:a", "pcm_s16le", wav],
                                check=True, capture_output=True)
-                cands.append({"rank": rank, "wav": wav,
+                cands.append({"rank": rank, "wav": _rel(wav, work),
                               "source": {"file": os.path.basename(r["file"]),
                                          "start": r["start"], "dur": r["dur"]},
                               "features": {kk: round(r[kk], 3) for kk in

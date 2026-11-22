@@ -159,3 +159,28 @@ def test_reftext_apply_rewrites_and_drops_prompt_cache(station):
     assert (vd / "demo.txt").read_text(encoding="utf-8").strip() == "Hôm nay. chúng ta học bài mới."
     assert not (vd / "demo.prompt.pt").exists()
     assert reftext_punct.process("khong-co")["status"] == "missing"
+
+
+def test_new_layout_station_writes_profile_and_lab_under_profiles(station, fake_engine, copy_ffmpeg, tmp_path,
+                                                                  capsys, monkeypatch):
+    """Trạm đã có profiles/: make-profile ghi clip vào profiles/<tên>/voice, nháp vào profiles/<tên>/lab; JSON có profiles_dir."""
+    monkeypatch.delenv("VOICE_STUDIO_WORK")
+    (station / "profiles").mkdir()
+    src = write_wav(tmp_path / "ghi-am.wav", seconds=2.0)
+    rc, out, _ = run(capsys, "make-profile", "--audio", src, "--start", "0.5", "--dur", "1",
+                     "--name", "moi", "--text", "Lời mẫu", "--no-check", "--set-default", "--json")
+    assert rc == 0, out
+    res = last_json(out)
+    base = station / "profiles" / "moi"
+    assert (base / "voice" / "moi.wav").is_file() and (base / "voice" / "moi.txt").is_file()
+    assert (base / "lab" / "meta.json").is_file()
+    assert res["profiles_dir"] == str(station / "profiles") and res["voice_dir"] == str(base / "voice")
+    assert "voices_dir" in res                                              # khoá cũ giữ nguyên
+    assert (station / "profiles" / "_default.txt").read_text(encoding="utf-8") == "moi"
+    assert not (station / "omnivoice" / "voices" / "moi.wav").exists()
+    # speak tìm đúng giọng ở kiểu mới, giọng cũ (demo/other) vẫn dùng được
+    assert profiles.list_profiles() == ["demo", "moi", "other"]
+    out_wav = tmp_path / "o.wav"
+    rc, out, _ = run(capsys, "speak", "--text", "Xin chào", "--profile", "moi", "--out", str(out_wav), "--json")
+    assert rc == 0 and out_wav.is_file(), out
+    assert fake_engine.calls
