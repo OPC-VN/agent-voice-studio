@@ -10,7 +10,7 @@ mình, nạp **đúng một** reference tương ứng, làm việc, dừng.
 
 | Đang xảy ra | Nạp | Rồi |
 |---|---|---|
-| Có text cần **đọc** — đã có profile | `references/vietnamese-tts-script.md` | viết lại text, gắn marker, tổng hợp |
+| Có text cần **đọc** — đã có profile | `references/vietnamese-tts-script.md` | viết lại text, chuẩn hoá từ nước ngoài, phân bổ marker theo bố cục video, tổng hợp |
 | Chưa có profile — có **bản ghi âm** | `references/mining-protocol.md` | đào → kiểm → dựng |
 | Giọng **nghe sai** — vấp, đọc sai số, lặp âm tiết | `references/engine-limits.md` | chẩn đoán theo hành vi đã biết của engine |
 | **Chưa cài gì** / cần dựng trạm | `references/install-omnivoice.md` | cài engine + `voice-studio init`, rồi quay lại |

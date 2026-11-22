@@ -59,11 +59,40 @@ nghìn kiểu Việt. Để nguyên.
 regex chỉ biết `\d+`. Dấu chấm hàng nghìn kiểu Việt bị vỡ thành mảnh — tệ hơn không chuẩn hoá.
 Luôn tắt.
 
+### Từ nước ngoài — chuẩn hoá ngay trong kịch bản, mỗi lần viết
+
+Agent tự chuẩn hoá từ tiếng Anh (và ngôn ngữ khác) **trong chính đoạn thoại đang làm, trước khi
+chạy model**. Không lập hay tra từ điển dùng chung: mỗi kịch bản tự xử lý, vì cùng một từ có
+thể đọc khác nhau tuỳ câu và seed.
+
+Đo ngày 22/11/2026, OmniVoice 0.6.0, giọng nền clip khoảng 16 giây: 25 thuật ngữ Data/AI,
+145 cách viết, mỗi cách 2 seed, ASR Whisper nghe lại bằng cả `vi` và `en`.
+
+| Loại từ | Cách viết | Ví dụ đã đo |
+|---|---|---|
+| Thuật ngữ, tên sản phẩm phổ biến | **để nguyên chữ gốc** | `Power BI`, `Power Query`, `Excel`, `Python`, `dashboard`, `measure`, `data model`, `pipeline`, `Copilot`, `ChatGPT`, `Lakehouse`, `insight`, `prompt`: đúng |
+| Viết tắt đọc từng chữ cái | để nguyên, viết hoa | `KPI`, `SQL`, `ETL`, `API`, `AI`: đúng |
+| Từ đọc liền như một từ nhưng viết hoa toàn bộ | **chỉ viết hoa chữ đầu** | `DAX` → "Dex/Desk" (0/6 lần đúng); `Dax` → đúng 5/6. `CALCULATE` chập chờn; `Calculate` ổn |
+| Ghép chữ cái với một từ (`SUMX`) | viết tách theo âm, nên viết lại câu để từ không đứng một mình | `SUMX` → "Zoom X"; `Sam-ếch` ổn định nhưng nguyên âm lệch; chưa có cách viết đạt hẳn |
+
+**Không phiên âm kiểu Việt khi chưa đo.** Phiên âm thường làm tệ hơn: `pai-lai` nghe ra "byline",
+`lây-hao` ra "layout", `in-sai` ra "inside". Chỉ phiên âm khi bản viết gốc đo ra sai **và** bản
+phiên âm đo ra đúng.
+
+Các bước cho mỗi kịch bản:
+1. Liệt kê mọi từ nước ngoài trong đoạn thoại.
+2. Áp bảng trên. Từ chưa có trong bảng thì để nguyên chữ gốc.
+3. Tổng hợp, rồi ASR nghe lại **theo câu** (mỗi đoạn dưới 30 giây, vì ASR bịa câu ở mép khối 30 giây).
+4. Từ nào nghe ra sai: thử 2–3 cách viết với seed ghim, giữ cách đo ra đúng.
+5. Ghi trong báo cáo những từ đã đổi cách viết.
+
+ASR chỉ chứng minh từ **nhận ra được**, không chứng minh đọc đúng giọng Anh. Nếu người nghe báo
+một từ vẫn lơ lớ dù ASR nghe đúng, thì tai người quyết định: thử cách viết khác cho riêng từ đó.
+
 ### Chưa đo — kiểm khi gặp
 
 Tên riêng nước ngoài ít gặp (một lần thử nghe `Claude` thành "Cloud", và không rõ engine phát
-âm sai hay ASR nghe nhầm); từ viết tắt cần đánh vần từng chữ cái; đơn vị như `km/h` và `GB`;
-số La Mã.
+âm sai hay ASR nghe nhầm); đơn vị như `km/h` và `GB`; số La Mã.
 
 ## 3. Marker
 
@@ -81,6 +110,44 @@ Marker không có trong manifest sẽ bị gỡ bỏ và đoạn đó quay về 
 
 Chọn theo **ý nghĩa**, không rải cho có biến hoá: câu mở móc (hook), nhấn mạnh hoặc kết luận,
 kể chuyện nhỏ nhẹ, liệt kê nhanh, giải thích thông thường.
+
+### Phân bổ sắc thái theo bố cục video
+
+Khi profile được dựng từ bộ thu theo tình huống, manifest có 8 marker: `trung-tinh`,
+`giai-thich`, `gan-gui`, `nhan-manh`, `hao-hung`, `ke-chuyen`, `hoi-dap`, `tram-lang`. Đọc
+manifest trước; profile thiếu marker nào thì bỏ dòng đó trong bảng, không tự đặt tên.
+
+| Phần của video | Marker chính | Marker đi kèm |
+|---|---|---|
+| Mở đầu, câu móc | `hao-hung` | `gan-gui` khi chào người xem |
+| Dàn bài, chuyển phần, hướng dẫn thao tác | `trung-tinh` | — |
+| Giảng khái niệm, đi từng bước | `giai-thich` | `trung-tinh` cho câu nối |
+| Ví dụ thực tế, tình huống dự án | `ke-chuyen` | — |
+| Câu hỏi tu từ, hỏi–đáp | `hoi-dap` | `giai-thich` cho lời đáp dài |
+| Chốt ý, cảnh báo sai lầm | `nhan-manh` | — |
+| Động viên, kêu gọi hành động | `gan-gui` | — |
+| Suy ngẫm, kết bài | `tram-lang` | `gan-gui` cho câu chào cuối |
+
+Quy ước biên tập (chưa đo bằng số, kiểm bằng tai khi giao):
+
+1. **Đủ sắc thái.** Video từ khoảng 3 phút (khoảng 30 câu) trở lên dùng đủ 8 marker, mỗi marker ít
+   nhất một đoạn. Video ngắn hơn dùng ít nhất 5 marker, luôn có `hao-hung` ở mở và
+   `nhan-manh` hoặc `tram-lang` ở kết.
+2. **Không marker nào chiếm quá 35 % số câu.** `trung-tinh` và `giai-thich` thường nhiều nhất,
+   cộng lại không quá 60 %.
+3. **Nhịp đổi.** Một đoạn marker dài 1–5 câu. Quá 5 câu liền (khoảng 30–40 giây) cùng một
+   marker nghe đều đều. Đổi marker từng câu một thì nghe giật.
+4. **Chọn theo ý nghĩa, không rải cho đủ.** Bài thiếu chỗ cho `ke-chuyen` hay `hoi-dap` thì
+   viết thêm một ví dụ ngắn hoặc một câu hỏi tu từ thật, không gắn marker lên câu không hợp.
+5. **Đọc báo cáo kiểm thử của profile** để biết cặp marker nào đo ra khó phân biệt. Đừng đặt
+   cặp đó liền nhau khi muốn người nghe cảm thấy đổi giọng.
+6. **In bảng phân bổ trong báo cáo giao:** marker · số câu · %. Câu đầu mỗi phần của video
+   luôn có marker ghi rõ, không dựa vào marker còn hiệu lực từ phần trước.
+
+Khung bài giảng 5 phút mẫu: `hao-hung` (2 câu) → `gan-gui` (1) → `trung-tinh` dàn bài (2) →
+`giai-thich` (4) → `ke-chuyen` (3) → `hoi-dap` (2) → `giai-thich` (3) → `nhan-manh` (2) →
+`trung-tinh` chuyển phần (1) → `giai-thich` (4) → `nhan-manh` tóm tắt (2) → `tram-lang` (2) →
+`gan-gui` (1).
 
 **Tag phi ngôn ngữ** — các âm nội tuyến của chính engine như tiếng cười, thở dài và thán từ
 ngạc nhiên — được chuyển thẳng qua, và yếu. Chúng là tiếng động rời rạc; không diễn đạt được
@@ -102,7 +169,9 @@ cho những câu trượt cổng ASR; đừng dò cho tất cả.
 2. **Không có mảnh câu ngắn đứng một mình.** Tiêu đề, nhãn hay một con số trơn render riêng
    sẽ chập chờn: token đầu bị méo hoặc một từ bị nuốt. Gộp nó vào đầu một câu dài hơn.
 3. Câu quá dài (khoảng trên 380 ký tự) tách tại dấu phẩy, không bao giờ tách giữa cụm từ.
-4. Tổng hợp → ASR ngược lại → tỉ lệ lỗi ký tự (CER) trên 0.25 nghĩa là sửa *cách viết* của
+4. Mọi từ nước ngoài đã qua các bước ở mục "Từ nước ngoài".
+5. Profile nhiều sắc thái: phân bổ marker đạt quy ước ở mục "Phân bổ sắc thái theo bố cục video".
+6. Tổng hợp → ASR ngược lại → tỉ lệ lỗi ký tự (CER) trên 0.25 nghĩa là sửa *cách viết* của
    phần đó rồi thử lại.
 
 ## 6. Ví dụ hoàn chỉnh
